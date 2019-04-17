@@ -1,12 +1,12 @@
 # Analysis of scChIPseq datasets
 
-The scripts analyses and produce figures of high-throughput single-cell immuno-precitpitation followed by sequencing experiments.
+Scripts to analyse high-throughput single-cell ChIP-seq experiments.
 
-## Running analysis 
+## How to run the analysis 
 
 ### Download datasets from GEO
 
-In a first time, download the dataset of interest from GEO (Grosselin et al.) https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE117309. To run the script until the differential analysis step, you need count datamatrices from one cell line and 2 conditions (e.g. HBCx-95 human and HBCx-95 CapaR human). The peak calling and gene set enrichment parts require BAM files which are not accessible on GEO but can be privately provided by the authors (patient privacy protection). 
+Download the dataset of interest from GEO (Grosselin et al.) https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE117309. To run the script up to the differential analysis step, you need the count matrices. The peak calling and gene set enrichment parts require BAM files. 
 
 ### Run script
 
@@ -64,8 +64,6 @@ In the repo, the script should have created a directory **datasets** in which a 
   
 ## Other
 
-The differential analysis and gene set enrichment analysis are quite sensitive and therefore changing even slightly the initial parameters might have a high impact on theses steps. Also, the correlation filtering step is based on a threshold calculated on a randomly sampled matrix, and is source of a tiny amount of randomness which might impact downstream steps. 
-
 The config file **annotation/MSIGdb_classes** contains the MSIG predefined classes (one per line) used in the gene set enrichment step. You can modify this file to add or remove MSIG classes in your analysis. Check the MSIG db website :http://software.broadinstitute.org/gsea/msigdb .
 
 The bash script **run.sh** contains the command lines used to produce analysis and most of the figures present in the paper. To run the analysis for the 4 datasets in the paper first download all the matrices and bam files in the repo root. Then run: 
@@ -82,6 +80,3 @@ Please do not hesitate to post an issue or contact the authors :
 Celine Vallot : celine.vallot@curie.fr
 
 Pacome Prompsy : pacome.prompsy@curie.fr
-
-Pia Kirchmeier
-
