@@ -14,7 +14,9 @@ First download the repository in the location of your choice, either with `git c
 
 Make sure to make the main script 'R_scChIP_seq_analysis' executable :
 
-```chmod 755 R_scChIP_seq_analysis.R```
+```
+chmod 755 R_scChIP_seq_analysis.R
+```
 
 Run the script using Rscript with the following commands (optional arguments between brackets) :
 
@@ -45,11 +47,24 @@ count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
 ```
         
 ## Output
-In the repo, the script should have created a directory 'datasets' in which a new directory is created for each run with a different input name. Inside that directory are created a directory for each part of the analysis, containing RData and figures 
+
+In the repo, the script should have created a directory 'datasets' in which a new directory is created for each run with a different input name. Inside that directory are created a directory for each part of the analysis, containing RData and figures.
   
+## Other
+
+The differential analysis and gene set enrichment analysis are quite sensitive and therefore changing even slightly the initial parameters might have a high impact on theses steps. Also, the correlation filtering step is based on a threshold calculated on a randomly sampled matrix, and is source of a tiny amount of randomness which might impact downstream steps. 
+
+The bash script 'run.sh' contains the command lines used to produce analysis and most of the figures present in the paper. To run the analysis for the 4 datasets in the paper first download all the matrices and bam files in the repo root. Then run: 
+
+```
+cd <scChiPseq_SOURCE_DIRECTORY>
+chmod 755 run.sh
+./run.sh
+```
 
 # Authors
 Please do not hesitate to post an issue or contact the authors :
+
 Celine Vallot : celine.vallot@curie.fr
 
 Pacome Prompsy : pacome.prompsy@curie.fr
