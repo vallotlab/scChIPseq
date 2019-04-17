@@ -18,9 +18,21 @@ Make sure to make the main script 'R_scChIP_seq_analysis' executable :
 chmod 755 R_scChIP_seq_analysis.R
 ```
 
-Run the script using Rscript with the following commands (optional arguments between brackets) :
+Run the script using Rscript with the following commands :
 
-```Rscript R_scChIP_seq_analysis.R <source_file_directory> <name> <annot = mm10 | hg38> <count_matrix_1.txt> <count_matrix_2.txt> [-b1 <file_1.bam> -b2 <file_2.bam> -n <nclust> -p <percent> -e <exclude.bed> -h ]```
+```
+Rscript R_scChIP_seq_analysis.R  <source_file_directory> \
+        <name> \
+        <annot = mm10 | hg38> \
+        <count_matrix_1.txt> \
+        <count_matrix_2.txt> \
+        -b1 <file_1.bam> \
+        -b2 <file_2.bam> \
+        -n <nclust> \
+        -p <percent> \
+        -e <exclude.bed> \
+        -h ]
+```
 
 The arguments are described below : 
 
