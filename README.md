@@ -66,6 +66,8 @@ In the repo, the script should have created a directory 'datasets' in which a ne
 
 The differential analysis and gene set enrichment analysis are quite sensitive and therefore changing even slightly the initial parameters might have a high impact on theses steps. Also, the correlation filtering step is based on a threshold calculated on a randomly sampled matrix, and is source of a tiny amount of randomness which might impact downstream steps. 
 
+The config file 'annotation/MSIGdb_classes' contains the MSIG predefined classes (one per line) used in the gene set enrichment step. You can modify this file to add or remove MSIG classes in your analysis. Check the MSIG db website :http://software.broadinstitute.org/gsea/msigdb .
+
 The bash script 'run.sh' contains the command lines used to produce analysis and most of the figures present in the paper. To run the analysis for the 4 datasets in the paper first download all the matrices and bam files in the repo root. Then run: 
 
 ```
