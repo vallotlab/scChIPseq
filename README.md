@@ -31,7 +31,7 @@ Rscript R_scChIP_seq_analysis.R  <source_file_directory> \
         -n <nclust> \
         -p <percent> \
         -e <exclude.bed> \
-        -h ]
+        -h
 ```
 
 The arguments are described below : 
