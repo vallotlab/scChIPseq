@@ -22,7 +22,7 @@ print("Initializing pipeline...")
   args <- commandArgs(TRUE)
   input = list()
   print(args)  
-  if(length(args) < 7) {
+  if(length(args) < 5) {
     args <- c("--help")
   } else{
     input$source_file_directory = as.character(args[1])
@@ -30,8 +30,13 @@ print("Initializing pipeline...")
     input$annotation_id = as.character(args[3])
     input$count_matrix_1 = as.character(args[4])
     input$count_matrix_2 = as.character(args[5])
-    input$bam1 = as.character(args[6])
-    input$bam2 = as.character(args[7])
+    
+    if( '-b1' %in% args) {
+      input$bam1 = as.character(args[which(args == '-b1')+1])
+    }
+    if( '-b2' %in% args) {
+      input$bam2 = as.character(args[which(args == '-b2')+1])
+    }
     if( '-n' %in% args) {
       input$nclust = as.integer(args[which(args == '-n')+1])
     }
@@ -42,12 +47,18 @@ print("Initializing pipeline...")
       input$exclude = as.character(args[which(args == '-e')+1])
     }
     if(input$annotation_id != "mm10" && input$annotation_id != "hg38"){
-      print("ERROR :  Annotation id in wrong format")
+      print("ERROR :  Annotation id in wrong format, please input 'mm10' or 'hg38' ")
       args <- c("--help")
     }
-    if(!file.exists(input$count_matrix_1) | !file.exists(input$count_matrix_2) | !file.exists(input$bam1) | !file.exists(input$bam2) ){
-      print("ERROR :  Count Matrix or bam file doesn't exists")
+    if(!file.exists(input$count_matrix_1) | !file.exists(input$count_matrix_2)  ){
+      print("ERROR :  Count Matrix file not found ")
       args <- c("--help")
+    }
+    if( !is.null(input$bam1) | !is.null(input$bam2)){
+      if(!file.exists(input$bam1) | !file.exists(input$bam2)){
+        print("ERROR :  Bam file not found ")
+        args <- c("--help")
+      }
     }
   }
 
@@ -67,21 +78,27 @@ print("Initializing pipeline...")
     cat("
         Single-cell ChIP seq analysis :
    
-        Arguments:
+        >Mandatory arguments (in the given order):
+
         source_file_directory   - path to script location to set working directory
-        name   - path to script location to set working directory
+        name                  - path to script location to set working directory
         annot= <mm10|hg38>   - annotation to use (Mouse or Human)
         count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
         count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
-        file_1.bam          - full path to first bam file for peak calling (.bam)
-        file_2.bam          - full path to second bam file for peak calling (.bam)
+        
+        >Optional arguments: 
+
+        -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
+        -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
         -n <nclust>         - number of cluster to choose (optional)
         -p <percent>         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional)
         -e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
         --help              - print this text
    
         Example:
-        Rscript R_scChIP_seq_analysis.R . 'HBCx_95' 'mm10'  HBCx_95_CapaR_original_mm10.txt  HBCx_95_original_mm10.txt HBCx_95_CapaR_flagged_rmDup.bam HBCx_95_flagged.bam -n 3 -p 1 -e regions.bed  \n\n
+        Rscript R_scChIP_seq_analysis.R . 'HBCx_95' 'mm10'  HBCx_95_CapaR_original_mm10.txt  HBCx_95_original_mm10.txt -b1 HBCx_95_CapaR_flagged_rmDup.bam -b2 HBCx_95_flagged.bam -n 3 -p 1 -e regions.bed  \n\n
+        
+        Remark : for peak calling & gene set enrichment make sure that the order of the count matrices is the same as the order of the bam files.
         ")
     
     q(save="no")
@@ -644,217 +661,223 @@ print("Running differential analysis...")
 
 print("Differential analysis done...")
 
-##############################################################################################################################
-### 5. Peak calling
-##############################################################################################################################
-
-print("Running peak calling...")
-
-
-## 5.1 Creating peak calling folder ##
-
-dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks"), showWarnings=FALSE)
-dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks", paste0( input$name, "_k", input$nclust)), showWarnings=FALSE)
-odir = file.path(init$data_folder, "datasets", input$name, "peaks",paste0(input$name,"_k",input$nclust))
-sample_ids <- unique(annot_sel$sample_id)
-input$pc_stat="p.value"
-stat.value <- if(input$pc_stat=="p.value") paste("-p", input$pc_stat_value) else paste("-q", input$pc_stat_value)
-inputBams = as.vector(unlist(inputBams))
-
-## 5.2 Merging bam files together ##
-
-if(length(inputBams) > 1) {
-  write(inputBams, file=file.path(odir, "bam_list.txt"))
-  system(paste0('samtools merge -@ 4 -f -h ', inputBams[1],' -b ', file.path(odir, "bam_list.txt"), ' ', file.path(odir, 'merged.bam')))
-  merged_bam=file.path(odir, 'merged.bam')
-}
-
-## 5.3 Writing affected clusters ##
-
-for(class in levels(factor(affectation$ChromatinGroup))){
-  write(as.vector(affectation$barcode[which(affectation$ChromatinGroup == as.character(class))]), file=file.path(odir, paste0(class, ".barcode_class")))
-}
-write(levels(factor(affectation$ChromatinGroup)),file = file.path(odir, "barcodes.barcode_class"))
-
-## 5.4 Splitting bam files into clusters ##
-
-system(paste0('samtools view -H ', merged_bam, ' > ', file.path(odir, 'header.sam')))
-system(paste0('for i in $(cat ', file.path(odir, 'barcodes.barcode_class'), '); do samtools view -h ',merged_bam,' | fgrep -w -f ', file.path(odir,'/$i.barcode_class'), ' > ', file.path(odir,'$i.sam'), ';done'))
-
-#Reconvert to bam
-system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do cat ', file.path(odir, 'header.sam'), ' ', file.path(odir, '$i.sam'), ' | samtools view -b - > ', file.path(odir, '$i.bam'), ' ; done'))
-
-#BamCoverage
-#system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do samtools index ', file.path(odir,'$i.bam'), '; done'))
-#system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do bamCoverage --bam ', file.path(odir,'$i.bam'), ' --outFileName ', file.path(odir,'$i.bw'), ' --binSize 50 --smoothLength 500 --extendReads 150 --ignoreForNormalization chrX --numberOfProcessors 4 --normalizeUsing RPKM; done'))
-
-system(paste0('rm ', file.path(odir,'*.barcode_class'), ' ', file.path(odir,'*.sam')))
-
-## 5.5 Call peak on each cluster ##
-
-#Peak calling with macs2
-stat.value = '-p 0.05'
-for(cluster in levels(factor(affectation$ChromatinGroup))){
-  system(paste0('macs2 callpeak ', stat.value, ' --broad -t ', file.path(odir, paste0(cluster,".bam")), " --outdir ", odir," --name ",cluster))
-  system(paste0('bedtools merge -delim "\t" -d 20000 -i ', file.path(odir, paste0(cluster, '_peaks.broadPeak')), ' > ', file.path(odir, paste0(cluster, '_merged.bed'))))
-}
-
-
-#Clean up files
-unlink(file.path(odir, "bam_list.txt"))
-unlink(file.path(odir, "*.bam"))
-unlink(file.path(odir, "*.bam.bai"))
-unlink(file.path(odir, "*.xls")) 
-unlink(file.path(odir, "*.gappedPeak"))
-unlink(file.path(odir, "*_model.r"))
-
-## 5.6 Make annotation files ##
-
-mergeBams <- paste(sapply(levels(factor(affectation$ChromatinGroup)), function(x){ file.path(odir, paste0(x, "_merged.bed")) }), collapse = ';')
-mergeBams <- paste0('"', mergeBams, '"')
-system(paste("bash", file.path("Modules", "makePeakAnnot.sh"), mergeBams, file.path("annotation", input$annotation_id, "chrom.sizes.bed"), file.path("annotation", input$annotation_id, "50k.bed"), file.path("annotation", input$annotation_id, "Gencode_TSS_pc_lincRNA_antisense.bed"), paste0('"', odir, .Platform$file.sep, '"')))
-
-print("Peak calling done...")
-
-##############################################################################################################################
-### 6. Enrichment Analysis
-##############################################################################################################################
-
-print("Running enrichment analysis...")
-
-## 6.1 Loading annotation files ##
-
-  myData = new.env()
-  load(file.path(init$data_folder,"annotation" , input$annotation_id, 'MSigDB.RData'), envir=myData)
-  MSIG.ls <-  myData$MSIG.ls
-  MSIG.gs <-  myData$MSIG.gs
-  annotFeat_long <-  as.data.frame(cSplit(annotFeat, splitCols="Gene", sep=", ", direction="long"))
-
-  pm.annot.window.file <- file.path(init$data_folder, 'datasets', input$name, 'peaks', paste0(input$name, '_k', input$nclust), 'pm.annot.window.bed')
-  peak_window <- read.table(pm.annot.window.file, sep="\t", header=F)
-  colnames(peak_window) <- c("chr", "start", "end", "w_chr", "w_start", "w_end")
-  peak_window$peak_ID <- paste(peak_window$chr, peak_window$start, peak_window$end, sep="_")
-  peak_window$window_ID <- paste(peak_window$w_chr, peak_window$w_start, peak_window$w_end, sep="_")
-
-  pm.annot.gene.file <- file.path(init$data_folder, 'datasets', input$name, 'peaks', paste0(input$name, '_k', input$nclust), 'pm.annot.gene.bed')
-  peak_gene <- read.table(pm.annot.gene.file, sep="\t", header=F)
-  peak_gene <- peak_gene[, c(1:3, 7:8)]
-  colnames(peak_gene) <- c("chr","start", "end", "Gene_name", "dist_TSS")
-  peak_gene$peak_ID <- paste(peak_gene$chr, peak_gene$start, peak_gene$end, sep="_")
-
-  Gencode <- read.table(file.path('annotation', input$annotation_id, 'Gencode_TSS_pc_lincRNA_antisense.bed'))
-  GencodeGenes <- unique(Gencode$V4)
-
-## 6.2 Running enrichment test for each cluster ##
-
-  Both <- list()
-  Overexpressed <- list()
-  Underexpressed <- list()
-
-  for(i in 1:length(diff$groups)){
-        gp <- diff$groups[i]
-        ref <- diff$refs[i]
-        signific <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & abs(diff$my.res[, paste("cdiff", gp, sep=".")]) > input$cdiff.th)]
-        significG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% signific])
-        over <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] > input$cdiff.th)]
-        overG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% over])
-        under <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] < -input$cdiff.th)]
-        underG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% under])
-
-        signific_associated_peak <- peak_window[peak_window$window_ID %in% signific, 8]
-        over_associated_peak <- peak_window[peak_window$window_ID %in% over, 8]
-        under_associated_peak <- peak_window[peak_window$window_ID %in% under, 8]
-        signific_associated_gene <- peak_gene[peak_gene$peak_ID %in% signific_associated_peak & peak_gene$dist_TSS<1000, ]
-        over_associated_gene <- peak_gene[peak_gene$peak_ID %in% over_associated_peak & peak_gene$dist_TSS<1000, ]
-        under_associated_gene <- peak_gene[peak_gene$peak_ID %in% under_associated_peak & peak_gene$dist_TSS<1000, ]
-        significG <- unique(signific_associated_gene$Gene_name)
-        overG <- unique(over_associated_gene$Gene_name)
-        underG <- unique(under_associated_gene$Gene_name)
-        
-        # if(length(significG)){
-        #   enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=significG, possibleIds=GencodeGenes)
-        #   enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
-        #   enrich.test <- merge(subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
-        #   enrich.test <- enrich.test[order(enrich.test$`p-value`),]
-        #   ind <- which(enrich.test$`q-value`<= 0.1)
-        #   if(!length(ind)){ind <- 1:10}
-        #   Both[[i]] <- enrich.test[ind,]
-        # }
-        if(length(overG)){
-          enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=overG, possibleIds=GencodeGenes)
-          enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
-          enrich.test <- merge( subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
-          enrich.test <- enrich.test[order(enrich.test$`p-value`),]
-          ind <- which(enrich.test$`q-value`<= 0.1)
-          if(!length(ind)){ind <- 1:10}
-          Overexpressed[[i]]  <- enrich.test[ind,]
-        }
-        
-        if(length(underG)){
-          enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=underG, possibleIds=GencodeGenes)
-          enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
-          enrich.test <- merge( subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
-          enrich.test <- enrich.test[order(enrich.test$`p-value`),]
-          ind <- which(enrich.test$`q-value`<= 0.1)
-          if(!length(ind)){ind <- 1:10}
-          Underexpressed[[i]] <- enrich.test[ind,]
-        }
-        
+#If user inputed bam files -> continue towards peak calling and gene set enrichment :
+if(file.exists(input$bam1) & file.exists(input$bam2)){
+  
+  print("Bam files found, continuing analysis...")
+  
+  ##############################################################################################################################
+  ### 5. Peak calling
+  ##############################################################################################################################
+  
+  print("Running peak calling...")
+  
+  
+  ## 5.1 Creating peak calling folder ##
+  
+  dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks"), showWarnings=FALSE)
+  dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks", paste0( input$name, "_k", input$nclust)), showWarnings=FALSE)
+  odir = file.path(init$data_folder, "datasets", input$name, "peaks",paste0(input$name,"_k",input$nclust))
+  sample_ids <- unique(annot_sel$sample_id)
+  input$pc_stat="p.value"
+  stat.value <- if(input$pc_stat=="p.value") paste("-p", input$pc_stat_value) else paste("-q", input$pc_stat_value)
+  inputBams = as.vector(unlist(inputBams))
+  
+  ## 5.2 Merging bam files together ##
+  
+  if(length(inputBams) > 1) {
+    write(inputBams, file=file.path(odir, "bam_list.txt"))
+    system(paste0('samtools merge -@ 4 -f -h ', inputBams[1],' -b ', file.path(odir, "bam_list.txt"), ' ', file.path(odir, 'merged.bam')))
+    merged_bam=file.path(odir, 'merged.bam')
   }
   
-  enr <- list(Both=NULL, Overexpressed=NULL, Underexpressed=NULL)
-  # enr$Both <- Both
-  enr$Overexpressed <- Overexpressed
-  enr$Underexpressed <- Underexpressed
+  ## 5.3 Writing affected clusters ##
   
-
-##  6.3 Saving enrichment tables ##
-
-  for(i in 1:length(diff$groups)){
-        # if(!is.null(enr$Both[[i]])){
-        #   filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_significant_gene_sets.csv"))
-        #   write.table(enr$Both[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
-        # }
-        if(!is.null(enr$Overexpressed[[i]])){
-          filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_enriched_gene_sets.csv"))
-          write.table(enr$Overexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
-        }
-        if(!is.null(enr$Underexpressed[[i]])){
-          filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_depleted_gene_sets.csv"))
-          write.table(enr$Underexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
-         }
+  for(class in levels(factor(affectation$ChromatinGroup))){
+    write(as.vector(affectation$barcode[which(affectation$ChromatinGroup == as.character(class))]), file=file.path(odir, paste0(class, ".barcode_class")))
+  }
+  write(levels(factor(affectation$ChromatinGroup)),file = file.path(odir, "barcodes.barcode_class"))
+  
+  ## 5.4 Splitting bam files into clusters ##
+  
+  system(paste0('samtools view -H ', merged_bam, ' > ', file.path(odir, 'header.sam')))
+  system(paste0('for i in $(cat ', file.path(odir, 'barcodes.barcode_class'), '); do samtools view -h ',merged_bam,' | fgrep -w -f ', file.path(odir,'/$i.barcode_class'), ' > ', file.path(odir,'$i.sam'), ';done'))
+  
+  #Reconvert to bam
+  system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do cat ', file.path(odir, 'header.sam'), ' ', file.path(odir, '$i.sam'), ' | samtools view -b - > ', file.path(odir, '$i.bam'), ' ; done'))
+  
+  #BamCoverage
+  #system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do samtools index ', file.path(odir,'$i.bam'), '; done'))
+  #system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do bamCoverage --bam ', file.path(odir,'$i.bam'), ' --outFileName ', file.path(odir,'$i.bw'), ' --binSize 50 --smoothLength 500 --extendReads 150 --ignoreForNormalization chrX --numberOfProcessors 4 --normalizeUsing RPKM; done'))
+  
+  system(paste0('rm ', file.path(odir,'*.barcode_class'), ' ', file.path(odir,'*.sam')))
+  
+  ## 5.5 Call peak on each cluster ##
+  
+  #Peak calling with macs2
+  stat.value = '-p 0.05'
+  for(cluster in levels(factor(affectation$ChromatinGroup))){
+    system(paste0('macs2 callpeak ', stat.value, ' --broad -t ', file.path(odir, paste0(cluster,".bam")), " --outdir ", odir," --name ",cluster))
+    system(paste0('bedtools merge -delim "\t" -d 20000 -i ', file.path(odir, paste0(cluster, '_peaks.broadPeak')), ' > ', file.path(odir, paste0(cluster, '_merged.bed'))))
   }
   
-## 6.4 Plotting most depleted/enriched regions ##
-
-  pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Over.pdf')))
-  for(i in 1:length(diff$groups)){
-    if(!is.null(enr$Overexpressed[[i]])) {
-      over = as_tibble(enr$Overexpressed[[i]])
-      over = over %>% dplyr::filter(Class == "c5_GO" | Class == "hallmark" | Class == "c2_curated")
-      if(dim(over)[1]>0){
-        over_plot = ggplot(data =over[1:min(10,length(over$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = over$Gene.Set[1:min(10,length(over$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Enriched Gene Sets - C",i))
-        print(over_plot)
+  
+  #Clean up files
+  unlink(file.path(odir, "bam_list.txt"))
+  unlink(file.path(odir, "*.bam"))
+  unlink(file.path(odir, "*.bam.bai"))
+  unlink(file.path(odir, "*.xls")) 
+  unlink(file.path(odir, "*.gappedPeak"))
+  unlink(file.path(odir, "*_model.r"))
+  
+  ## 5.6 Make annotation files ##
+  
+  mergeBams <- paste(sapply(levels(factor(affectation$ChromatinGroup)), function(x){ file.path(odir, paste0(x, "_merged.bed")) }), collapse = ';')
+  mergeBams <- paste0('"', mergeBams, '"')
+  system(paste("bash", file.path("Modules", "makePeakAnnot.sh"), mergeBams, file.path("annotation", input$annotation_id, "chrom.sizes.bed"), file.path("annotation", input$annotation_id, "50k.bed"), file.path("annotation", input$annotation_id, "Gencode_TSS_pc_lincRNA_antisense.bed"), paste0('"', odir, .Platform$file.sep, '"')))
+  
+  print("Peak calling done...")
+  
+  ##############################################################################################################################
+  ### 6. Enrichment Analysis
+  ##############################################################################################################################
+  
+  print("Running enrichment analysis...")
+  
+  ## 6.1 Loading annotation files ##
+  
+    myData = new.env()
+    load(file.path(init$data_folder,"annotation" , input$annotation_id, 'MSigDB.RData'), envir=myData)
+    MSIG.ls <-  myData$MSIG.ls
+    MSIG.gs <-  myData$MSIG.gs
+    annotFeat_long <-  as.data.frame(cSplit(annotFeat, splitCols="Gene", sep=", ", direction="long"))
+  
+    pm.annot.window.file <- file.path(init$data_folder, 'datasets', input$name, 'peaks', paste0(input$name, '_k', input$nclust), 'pm.annot.window.bed')
+    peak_window <- read.table(pm.annot.window.file, sep="\t", header=F)
+    colnames(peak_window) <- c("chr", "start", "end", "w_chr", "w_start", "w_end")
+    peak_window$peak_ID <- paste(peak_window$chr, peak_window$start, peak_window$end, sep="_")
+    peak_window$window_ID <- paste(peak_window$w_chr, peak_window$w_start, peak_window$w_end, sep="_")
+  
+    pm.annot.gene.file <- file.path(init$data_folder, 'datasets', input$name, 'peaks', paste0(input$name, '_k', input$nclust), 'pm.annot.gene.bed')
+    peak_gene <- read.table(pm.annot.gene.file, sep="\t", header=F)
+    peak_gene <- peak_gene[, c(1:3, 7:8)]
+    colnames(peak_gene) <- c("chr","start", "end", "Gene_name", "dist_TSS")
+    peak_gene$peak_ID <- paste(peak_gene$chr, peak_gene$start, peak_gene$end, sep="_")
+  
+    Gencode <- read.table(file.path('annotation', input$annotation_id, 'Gencode_TSS_pc_lincRNA_antisense.bed'))
+    GencodeGenes <- unique(Gencode$V4)
+  
+  ## 6.2 Running enrichment test for each cluster ##
+  
+    Both <- list()
+    Overexpressed <- list()
+    Underexpressed <- list()
+  
+    for(i in 1:length(diff$groups)){
+          gp <- diff$groups[i]
+          ref <- diff$refs[i]
+          signific <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & abs(diff$my.res[, paste("cdiff", gp, sep=".")]) > input$cdiff.th)]
+          significG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% signific])
+          over <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] > input$cdiff.th)]
+          overG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% over])
+          under <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] < -input$cdiff.th)]
+          underG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% under])
+  
+          signific_associated_peak <- peak_window[peak_window$window_ID %in% signific, 8]
+          over_associated_peak <- peak_window[peak_window$window_ID %in% over, 8]
+          under_associated_peak <- peak_window[peak_window$window_ID %in% under, 8]
+          signific_associated_gene <- peak_gene[peak_gene$peak_ID %in% signific_associated_peak & peak_gene$dist_TSS<1000, ]
+          over_associated_gene <- peak_gene[peak_gene$peak_ID %in% over_associated_peak & peak_gene$dist_TSS<1000, ]
+          under_associated_gene <- peak_gene[peak_gene$peak_ID %in% under_associated_peak & peak_gene$dist_TSS<1000, ]
+          significG <- unique(signific_associated_gene$Gene_name)
+          overG <- unique(over_associated_gene$Gene_name)
+          underG <- unique(under_associated_gene$Gene_name)
+          
+          # if(length(significG)){
+          #   enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=significG, possibleIds=GencodeGenes)
+          #   enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
+          #   enrich.test <- merge(subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
+          #   enrich.test <- enrich.test[order(enrich.test$`p-value`),]
+          #   ind <- which(enrich.test$`q-value`<= 0.1)
+          #   if(!length(ind)){ind <- 1:10}
+          #   Both[[i]] <- enrich.test[ind,]
+          # }
+          if(length(overG)){
+            enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=overG, possibleIds=GencodeGenes)
+            enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
+            enrich.test <- merge( subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
+            enrich.test <- enrich.test[order(enrich.test$`p-value`),]
+            ind <- which(enrich.test$`q-value`<= 0.1)
+            if(!length(ind)){ind <- 1:10}
+            Overexpressed[[i]]  <- enrich.test[ind,]
+          }
+          
+          if(length(underG)){
+            enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=underG, possibleIds=GencodeGenes)
+            enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
+            enrich.test <- merge( subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
+            enrich.test <- enrich.test[order(enrich.test$`p-value`),]
+            ind <- which(enrich.test$`q-value`<= 0.1)
+            if(!length(ind)){ind <- 1:10}
+            Underexpressed[[i]] <- enrich.test[ind,]
+          }
+          
+    }
+    
+    enr <- list(Both=NULL, Overexpressed=NULL, Underexpressed=NULL)
+    # enr$Both <- Both
+    enr$Overexpressed <- Overexpressed
+    enr$Underexpressed <- Underexpressed
+    
+  
+  ##  6.3 Saving enrichment tables ##
+  
+    for(i in 1:length(diff$groups)){
+          # if(!is.null(enr$Both[[i]])){
+          #   filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_significant_gene_sets.csv"))
+          #   write.table(enr$Both[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
+          # }
+          if(!is.null(enr$Overexpressed[[i]])){
+            filename <- file.path(init$data_folder,"datasets",input$name,"supervised",paste0(diff$groups[i], "_enriched_gene_sets.csv"))
+            write.table(enr$Overexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
+          }
+          if(!is.null(enr$Underexpressed[[i]])){
+            filename <- file.path(init$data_folder,"datasets",input$name,"supervised",paste0(diff$groups[i], "_depleted_gene_sets.csv"))
+            write.table(enr$Underexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
+           }
+    }
+    
+  ## 6.4 Plotting most depleted/enriched regions ##
+    classes_MSIG = as.vector(read.table("annotation/MSIGdb_classes")[,1])
+    
+    pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Over.pdf')))
+    for(i in 1:length(diff$groups)){
+      if(!is.null(enr$Overexpressed[[i]])) {
+        over = as_tibble(enr$Overexpressed[[i]])
+        over = over %>% dplyr::filter(Class %in% classes_MSIG)
+        if(dim(over)[1]>0){
+          over_plot = ggplot(data =over[1:min(10,length(over$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = over$Gene.Set[1:min(10,length(over$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Enriched Gene Sets - C",i))
+          print(over_plot)
+        }
       }
     }
-  }
-  dev.off()
-  
-  pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Under.pdf')))
-  for(i in 1:length(diff$groups)){
-    if(!is.null(enr$Underexpressed[[i]])) {
-      under = as_tibble(enr$Underexpressed[[i]])
-      under = under %>% dplyr::filter(Class == "c5_GO" | Class == "hallmark" | Class == "c2_curated")
-      if(dim(under)[1]>0){
-        under_plot = ggplot(data =under[1:min(10,length(under$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = under$Gene.Set[1:min(10,length(under$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Depleted Gene Sets - C",i))
-        print(under_plot)
+    dev.off()
+    
+    pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Under.pdf')))
+    for(i in 1:length(diff$groups)){
+      if(!is.null(enr$Underexpressed[[i]])) {
+        under = as_tibble(enr$Underexpressed[[i]])
+        under = under %>% dplyr::filter(Class %in% classes_MSIG)
+        if(dim(under)[1]>0){
+          under_plot = ggplot(data =under[1:min(10,length(under$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = under$Gene.Set[1:min(10,length(under$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Depleted Gene Sets - C",i))
+          print(under_plot)
+        }
       }
     }
-  }
-  dev.off()
-
-print("Gene set enrichment done...")
-
+    dev.off()
+  
+  print("Gene set enrichment done...")
+}
 ##############################################################################################################################
 ### END
 ##############################################################################################################################
