@@ -20,22 +20,22 @@ Run the script using Rscript with the following commands (optional arguments bet
   
 The arguments are described below : 
 
-Mandatory arguments (in the given order):
+* Mandatory arguments (in the given order):
         
-source_file_directory   - path to script location to set working directory
-name                  - path to script location to set working directory
-annot= <mm10|hg38>   - annotation to use (Mouse or Human)
-count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
-count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
-        
-        Optional arguments: 
+  * source_file_directory   - path to script location to set working directory
+  * name                  - path to script location to set working directory
+  * annot= <mm10|hg38>   - annotation to use (Mouse or Human)
+  * count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
+  * count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
 
-        -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
-        -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
-        -n <nclust>         - number of cluster to choose (optional)
-        -p <percent> [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
-        -e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
-        --help              - print this text
+* Optional arguments: 
+
+  * -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
+  * -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
+  * -n <nclust>         - number of cluster to choose (optional)
+  * -p <percent> [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
+  * -e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
+  * --help              - print this text
         
 ## Output
 In the repo, the script should have created a directory 'datasets' in which a new directory is created for each run with a different input name. Inside that directory are created a directory for each part of the analysis, containing RData and figures 
