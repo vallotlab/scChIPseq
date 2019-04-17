@@ -38,9 +38,9 @@ count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
 ```
 -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
 -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
--n <nclust>         - number of cluster to choose (optional)
--p <percent> [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
--e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
+-n nclust        - number of cluster to choose (optional)
+-p percent [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
+-e exclude.bed    -bed files containing regions to exclude (e.g. high CNV regions)
 --help              - print this text
 ```
         
