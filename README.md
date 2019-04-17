@@ -1,7 +1,6 @@
 # Analysis of scChIPseq datasets
 
-The scripts reproduce analysis and figures of single-cell immuno-precitpitation followed by sequencing experiments done in the paper : Grosselin et al., 2019. 
-
+The scripts analyses and produce figures of high-throughput single-cell immuno-precitpitation followed by sequencing experiments.
 
 ## Running analysis 
 
@@ -16,13 +15,28 @@ First download the repository in the location of your choice, either with ```git
 Make sure to make the main script 'R_scChIP_seq_analysis' executable :
 ```chmod 755 R_scChIP_seq_analysis.R```
 
-Run the script using Rscript with the following commands 
-```Rscript R_scChIP_seq_analysis.R <source_file_directory> <name> <annot = mm10 | hg38> <count_matrix_1.txt> <count_matrix_2.txt> <file_1.bam> <file_2.bam>```
+Run the script using Rscript with the following commands (optional arguments between brackets)
+```Rscript R_scChIP_seq_analysis.R <source_file_directory> <name> <annot = mm10 | hg38> <count_matrix_1.txt> <count_matrix_2.txt> [-b1 <file_1.bam> -b2 <file_2.bam> -n <nclust> -p <percent> -e <exclude.bed> -h ]```
   
-Example with GEO sample HBCx-95 and HBCx-95-CapaR mouse: 
-```Rscript R_scChIP_seq_analysis.R '~/scChIPseq' 'HBCx_95_human_order_1' 'hg38' HBCx_95_CapaR_original_hg38.txt HBCx_95_original_hg38.txt HBCx_95_CapaR_flagged_rmDup.bam HBCx_95_flagged_rmDup.bam -n 2 -p 2 -e annotation/hg38/exclude_regions_hg38.bed
-```
+The arguments are described below : 
 
+        >Mandatory arguments (in the given order):
+        
+        source_file_directory   - path to script location to set working directory
+        name                  - path to script location to set working directory
+        annot= <mm10|hg38>   - annotation to use (Mouse or Human)
+        count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
+        count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
+        
+        >Optional arguments: 
+
+        -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
+        -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
+        -n <nclust>         - number of cluster to choose (optional)
+        -p <percent> [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
+        -e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
+        --help              - print this text
+        
 ## Output
 In the repo, the script should have created a directory 'datasets' in which a new directory is created for each run with a different input name. Inside that directory are created a directory for each part of the analysis, containing RData and figures 
   
