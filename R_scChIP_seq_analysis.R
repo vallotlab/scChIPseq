@@ -645,7 +645,7 @@ for(cluster in levels(factor(affectation$ChromatinGroup))){
 unlink(file.path(odir, "bam_list.txt"))
 unlink(file.path(odir, "*.bam"))
 unlink(file.path(odir, "*.bam.bai"))
-unlink(file.path(odir, "*.xls"))
+unlink(file.path(odir, "*.xls")) 
 unlink(file.path(odir, "*.gappedPeak"))
 unlink(file.path(odir, "*_model.r"))
 
