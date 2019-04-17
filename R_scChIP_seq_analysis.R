@@ -53,15 +53,15 @@ print("Initializing pipeline...")
 
   #If running from R, change and uncomment below  
   # input = list()
-  # input$source_file_directory = "/home/pprompsy/Documents/GitLab/Vallot_lab/"
-  # input$name = "HBCx_95_human_order_1"
+  # input$source_file_directory = "/home/pprompsy/Documents/GitLab/scChIPseq/"
+  # input$name = "HBCx_95_mm10_paper"
   # input$annotation_id = "hg38"
-  # input$count_matrix_1 = "test_set/HBCx_95_hg38/HBCx_95_CapaR_original_hg38.txt"
-  # input$count_matrix_2 = "test_set/HBCx_95_hg38/HBCx_95_original_hg38.txt"
-  # input$bam1 =  "test_set/HBCx_95_hg38/HBCx_95_CapaR_flagged_rmDup.bam"
-  # input$bam2 =  "test_set/HBCx_95_hg38/HBCx_95_flagged_rmDup.bam"
-  # input$nclust = 2
-  # input$percent_corr = 2
+  # input$count_matrix_2 = "test_set/HBCx_95_mm10_paper/MatCov_Sample2_merged123_mm10_rmdup_1000reads_mm10_50kb_chunks.txt"
+  # input$count_matrix_1 = "test_set/HBCx_95_mm10_paper/MatCov_Sample1_merged123_mm10_rmdup_1000reads_mm10_50kb_chunks.txt"
+  # input$bam2 =  "test_set/HBCx_95_mm10/HBCx_95_CapaR_flagged_rmDup.bam"
+  # input$bam1 =  "test_set/HBCx_95_mm10/HBCx_95_flagged_rmDup.bam"
+  # input$nclust = 3
+  # input$percent_corr = 1
 
   if("--help" %in% args | "-h" %in% args) {
     cat("
@@ -215,7 +215,7 @@ print("Initializing pipeline...")
   # load(file=file.path(init$data_folder, "datasets", input$name, "consclust", paste0(input$name, ".RData")))
   # load(file=file.path(init$data_folder, "datasets", input$name, "consclust", paste0(input$name,'_affectation_k',input$nclust, ".RData")))
   # load(file=file.path(init$data_folder, "datasets", input$name, "supervised", paste0(input$name, "_", input$nclust, "_", input$qval.th, "_", input$cdiff.th, "_", input$de_type, ".RData")))
-
+  
 
 ## 0.6 Data folder initialization ##
 
@@ -236,12 +236,23 @@ print("Initializing pipeline...")
     datamatrix_single <- read.table(input$datafile_matrix$datapath[i], header=TRUE, stringsAsFactors=FALSE)
 
     datamatrix_single <- datamatrix_single[!duplicated(rownames(datamatrix_single)),] #put IN for new format
-    rownames(datamatrix_single) <- gsub(":", "_", rownames(datamatrix_single))
-    rownames(datamatrix_single) <- gsub("-", "_", rownames(datamatrix_single))
-    total_cell <-length(datamatrix_single[1,])
+    
+    #If matrix in new format, comment two lines below :
+    rownames(datamatrix_single) = as.character(datamatrix_single[,1])
+    datamatrix_single = datamatrix_single [,-1]
+   
+    # & uncomment those
+    # rownames(datamatrix_single) <- gsub("-", "_", rownames(datamatrix_single))
+    # rownames(datamatrix_single) <- gsub(":", "_", rownames(datamatrix_single))
+
+    
+    total_cell <- length(datamatrix_single[1,])
     sample_name <- gsub('.{4}$', '', input$datafile_matrix$name[i])
     annot_single <- data.frame(barcode=colnames(datamatrix_single), cell_id=paste0(sample_name, "_c", 1:total_cell), sample_id=rep(sample_name, total_cell), batch_id=i)
+    
+    
     colnames(datamatrix_single) <- annot_single$cell_id
+    
     if(is.null(datamatrix)){ datamatrix <- datamatrix_single
     }else{
       common_regions <- intersect(rownames(datamatrix), rownames(datamatrix_single))
@@ -249,10 +260,26 @@ print("Initializing pipeline...")
     }
     if(is.null(annot_raw)){ annot_raw <- annot_single} else{ annot_raw <- rbind(annot_raw, annot_single)}
   }
+  
+  #Removing weird chromosomes
+  splitID <- sapply(rownames(datamatrix), function(x) strsplit(as.character(x), split="_"))
+  normalChr <- which(sapply(splitID, length) <= 3) # weird chromosomes contain underscores in the name
+  datamatrix <- datamatrix[normalChr,]
+  
+  #Removing user specified regions
+  if(!is.null(input$exclude)){
+    exclude_regions <- setNames(read.table(input$exclude, header=FALSE, stringsAsFactors=FALSE), c("chr", "start", "stop"))
+    dim(exclude_regions)
+    regions <- data.frame(loc=rownames(datamatrix))
+    regions <- separate(regions, loc, into=c("chr", "start", "stop"), sep="_", convert=TRUE)
+    reg_gr <- makeGRangesFromDataFrame(regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
+    excl_gr <- makeGRangesFromDataFrame(exclude_regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
+    ovrlps <- as.data.frame(findOverlaps(reg_gr, excl_gr))[, 1]
+    datamatrix <- datamatrix[-unique(ovrlps), ]
+  }
 
-
-  #Remove chrM from mat
-  datamatrix <- datamatrix[-grep("chrM",rownames(datamatrix)),]
+  #Remove chrM from mat if it is inside
+  if(length(grep("chrM",rownames(datamatrix)))>0)  datamatrix <- datamatrix[-grep("chrM",rownames(datamatrix)),]
 
   save(datamatrix, annot_raw, file=file.path(init$data_folder, "datasets", input$name, "scChIP_raw.RData"))
 
@@ -297,22 +324,7 @@ print("Running filtering and QC...")
   annot <- as.data.frame(annot[sel,])
   annot = cbind(annot,annot_raw[which(annot_raw$cell_id %in% rownames(annot)),])
 
-  #Removing weird chromosomes
-  splitID <- sapply(rownames(SelMatCov), function(x) strsplit(as.character(x), split="_"))
-  normalChr <- which(sapply(splitID, length) <= 3) # weird chromosomes contain underscores in the name
-  SelMatCov <- SelMatCov[normalChr,]
-
-  #Removing user specified regions
-  if(!is.null(input$exclude)){
-    exclude_regions <- setNames(read.table(input$exclude, header=FALSE, stringsAsFactors=FALSE), c("chr", "start", "stop"))
-    dim(exclude_regions)
-    regions <- data.frame(loc=rownames(SelMatCov))
-    regions <- separate(regions, loc, into=c("chr", "start", "stop"), sep="_", convert=TRUE)
-    reg_gr <- makeGRangesFromDataFrame(regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
-    excl_gr <- makeGRangesFromDataFrame(exclude_regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
-    ovrlps <- as.data.frame(findOverlaps(reg_gr, excl_gr))[, 1]
-    SelMatCov <- SelMatCov[-unique(ovrlps), ]
-  }
+  
 
   mat <- NULL
   mat <- mean(colSums(SelMatCov))*t(t(SelMatCov)/colSums(SelMatCov))
@@ -343,18 +355,69 @@ print("Running filtering and QC...")
   annotFeat <- annotFeat %>% group_by(ID) %>% summarise_all(funs(paste(unique(.), collapse = ', '))) %>% as.data.frame
   save(annotFeat, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "uncorrected", sep="_"), "_annotFeat.RData"))) # used for supervised analysis
 
+  tmp_meta <- data.frame(Sample=rownames(annot), sample_id=annot$sample_id) # modify if coloring should be possible for other columns
+  anocol <- geco.annotToCol2(annotS=annot[, annotCol], annotT=annot, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name, "Annotation_legends.pdf"), categCol=NULL)
+  annotColors <- data.frame(sample_id=as.data.frame(anocol)$sample_id) %>% setNames(str_c(names(.), "_Color_Orig")) %>% rownames_to_column("Sample") %>% left_join(tmp_meta,. , by="Sample")
+  
 ## 1.5 PCA ##
 
   print("Running pca ...")
   pca <- stats::prcomp(t(mat),center=F,scale.=F)
   pca = pca$x[,1:50]
-  print("PCA done !")
+  
 
+  extendXlimLeft <- 5 # Extend left Xlim by x percent of min
+  extendXlimRight <- 15 # Extend right Xlim by x percent of max
+  extendYlimBottom <- 5 # Extend bottom Ylim by x percent of min
+  extendYlimTop <- 5 # Extend top Ylim by x percent of max
+  TextSize <- 0.4
+  pcaText <- FALSE
+  
+  pdf(file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "PCA", sep="_"), ".pdf")), height=5, width=5)
+  
+  #PCA colored by sample_id
+  plot(pca[,1],pca[,2],col=alpha(anocol[,'sample_id'],0.6),xlab='PC1',ylab='PC2',cex=0.8,lwd=1.5, main=paste0('PCA colored by ',colnames(anocol)[1]), pch=19,
+   ) 
+  
+  #PCA colored by counts
+  plot(pca[,1],pca[,2],col=alpha(anocol[,'total_counts'],0.6),xlab='PC1',ylab='PC2',cex=0.8,lwd=1.5, main=paste0('PCA colored by ',colnames(anocol)[2]), pch=19,
+  ) 
+  dev.off()
+  
+  print("PCA done !")
+  
 ## 1.6 t-SNE ##
 
+  print("Running t-sne ...")
+  
   #Reduce the perplexity if the number of samples is too low to avoid perplexity error
   tsne <- Rtsne(pca[,1:50], dims=2, pca=FALSE, theta=0.0, perplexity=choose_perplexity(pca), verbose=FALSE, max_iter=1000)
+  
+  pdf(file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "Tsne", sep="_"), ".pdf")), height=5, width=5)
+  
+  #T-sne colored by sample_id
+  p <- ggplot(as.data.frame(tsne$Y), aes(x=V1, y=V2)) + geom_point(alpha=0.6, aes(color=annot[,'sample_id'])) +
+    labs(color='sample_id', x="t-SNE 1", y="t-SNE 2") +
+    theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+          panel.background=element_blank(), axis.line=element_line(colour="black"),
+          panel.border=element_rect(colour="black", fill=NA)) + ggtitle("T-SNE colored by sample id")
+  p <- p + scale_color_manual(values = levels(as.factor(unique(anocol[,'sample_id'])))) + theme(legend.position = "none")
+  p 
+  
+  #T-sne colored by counts
+  p <- ggplot(as.data.frame(tsne$Y), aes(x=V1, y=V2)) + geom_point(alpha=0.6, aes(color=annot[,'total_counts'])) +
+    labs(color='sample_id', x="t-SNE 1", y="t-SNE 2") +
+    theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+          panel.background=element_blank(), axis.line=element_line(colour="black"),
+          panel.border=element_rect(colour="black", fill=NA)) +  ggtitle("T-SNE colored by total count")
+  
+  p <- p + scale_color_gradientn(colours = matlab.like(100))
+  p 
+  
+  dev.off()
 
+  print("T-sne done !")
+  
 ## 1.7 Save data ##
 
   save(pca,mat, annot, tsne, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "uncorrected", sep="_"), ".RData")))
@@ -490,10 +553,6 @@ print("Running consensus clustering ...")
   }
 
 ## 3.4 Affecting cells to each class based on consensus clustering ##
-
-  tmp_meta <- data.frame(Sample=rownames(annot), sample_id=annot$sample_id) # modify if coloring should be possible for other columns
-  anocol <- geco.annotToCol2(annotS=annot[, annotCol], annotT=annot, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name, "Annotation_legends.pdf"), categCol=NULL)
-  annotColors <- data.frame(sample_id=as.data.frame(anocol)$sample_id) %>% setNames(str_c(names(.), "_Color_Orig")) %>% rownames_to_column("Sample") %>% left_join(tmp_meta,. , by="Sample")
 
   anocol_sel <- geco.annotToCol2(annotS=annot_sel[, annotCol], annotT=annot_sel, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name,"Annotation_legends_reclustering.pdf"), categCol=NULL)
 
