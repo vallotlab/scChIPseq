@@ -10,21 +10,23 @@ In a first time, download the dataset of interest from GEO (Grosselin et al.) ht
 
 ### Run script
 
-First download the repository in the location of your choice, either with ```git clone https://github.com/vallotlab/scChIPseq.git scChIPseq ``` or by clicking on 'Clone or Download' -> 'Download ZIP' and unzip.
+First download the repository in the location of your choice, either with `git clone https://github.com/vallotlab/scChIPseq.git scChIPseq` or by clicking on 'Clone or Download' -> 'Download ZIP' and unzip.
 
 Make sure to make the main script 'R_scChIP_seq_analysis' executable :
+
 ```chmod 755 R_scChIP_seq_analysis.R```
 
-Run the script using Rscript with the following commands (optional arguments between brackets)
+Run the script using Rscript with the following commands (optional arguments between brackets) :
+
 ```Rscript R_scChIP_seq_analysis.R <source_file_directory> <name> <annot = mm10 | hg38> <count_matrix_1.txt> <count_matrix_2.txt> [-b1 <file_1.bam> -b2 <file_2.bam> -n <nclust> -p <percent> -e <exclude.bed> -h ]```
-  
+
 The arguments are described below : 
 
 * Mandatory arguments (in the given order):
         
-  * source_file_directory   - path to script location to set working directory
+  * source_file_directory &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - path to script location to set working directory
   * name                  - path to script location to set working directory
-  * annot= <mm10|hg38>   - annotation to use (Mouse or Human)
+  * annot   - annotation to use (Mouse or Human)
   * count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
   * count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
 
