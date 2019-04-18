@@ -84,20 +84,19 @@ print("Initializing pipeline...")
         source_file_directory   - path to script location to set working directory
         name                  - path to script location to set working directory
         annot= <mm10|hg38>   - annotation to use (Mouse or Human)
-        count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
-        count_matrix_2.txt   - full path to second count matrix file (.tsv/.txt)
-        
+        -1 count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
+
         >Optional arguments: 
 
-        -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
-        -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
+        -[int] count_matrix_[int].txt   - full path to [int]th count matrix file (.tsv/.txt)
+        -b[int] file_[int].bam          - full path to [int]th bam file for peak calling (.bam)
         -n nclust         - number of cluster to choose (optional)
         -p percent [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
         -e exclude.bed    -bed files containing regions to exclude (e.g. high CNV regions)
         --help              - print this text
    
         Example:
-        Rscript R_scChIP_seq_analysis.R . 'HBCx_95' 'mm10'  HBCx_95_CapaR_original_mm10.txt  HBCx_95_original_mm10.txt -b1 HBCx_95_CapaR_flagged_rmDup.bam -b2 HBCx_95_flagged.bam -n 3 -p 1 -e regions.bed  \n\n
+        Rscript R_scChIP_seq_analysis.R . 'HBCx_95' 'hg38'  -1 HBCx_95_hg38.txt -2 HBCx_95_CapaR_hg38.txt -b1 HBCx_95_flagged.bam -b2 HBCx_95_CapaR_hg38.bam -n 3 -p 1 -e regions.bed  \n\n
         ")
     
     q(save="no")
