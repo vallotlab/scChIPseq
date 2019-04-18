@@ -29,14 +29,24 @@ print("Initializing pipeline...")
     input$name = as.character(args[2])
     input$annotation_id = as.character(args[3])
     input$count_matrix_1 = as.character(args[4])
-    input$count_matrix_2 = as.character(args[5])
+
+    for(i in 1:10){
+      if( paste0('-',i) %in% args) {
+        eval(parse(text = paste0('input$count_matrix_',i,' = as.character(args[which(args == paste0("-",',i,'))+1])' )))
+        if(!file.exists(eval(parse(text = paste0('input$count_matrix_',i))))){
+          print("ERROR :  Count Matrix file not found ")
+          q(save="no")
+        }
+      }
+      if( paste0('-b',i) %in% args) {
+        eval(parse(text = paste0('input$bam',i,' = as.character(args[which(args == paste0("-b",',i,'))+1])' )))
+        if(!file.exists(eval(parse(text = paste0('input$bam',i))))){
+          print("ERROR :  Bam file not found ")
+          q(save="no")
+        }
+      }
+    }
     
-    if( '-b1' %in% args) {
-      input$bam1 = as.character(args[which(args == '-b1')+1])
-    }
-    if( '-b2' %in% args) {
-      input$bam2 = as.character(args[which(args == '-b2')+1])
-    }
     if( '-n' %in% args) {
       input$nclust = as.integer(args[which(args == '-n')+1])
     }
@@ -50,28 +60,19 @@ print("Initializing pipeline...")
       print("ERROR :  Annotation id in wrong format, please input 'mm10' or 'hg38' ")
       args <- c("--help")
     }
-    if(!file.exists(input$count_matrix_1) | !file.exists(input$count_matrix_2)  ){
-      print("ERROR :  Count Matrix file not found ")
-      args <- c("--help")
-    }
-    if( !is.null(input$bam1) | !is.null(input$bam2)){
-      if(!file.exists(input$bam1) | !file.exists(input$bam2)){
-        print("ERROR :  Bam file not found ")
-        args <- c("--help")
-      }
-    }
+    
   }
 
   #If running from R, change and uncomment below  
   # input = list()
   # input$source_file_directory = "/home/pprompsy/Documents/GitLab/scChIPseq/"
-  # input$name = "HBCx_95_mm10_paper"
+  # input$name = "HBCx_22_hg38_paper"
   # input$annotation_id = "hg38"
-  # input$count_matrix_2 = "test_set/HBCx_95_mm10_paper/MatCov_Sample2_merged123_mm10_rmdup_1000reads_mm10_50kb_chunks.txt"
-  # input$count_matrix_1 = "test_set/HBCx_95_mm10_paper/MatCov_Sample1_merged123_mm10_rmdup_1000reads_mm10_50kb_chunks.txt"
-  # input$bam2 =  "test_set/HBCx_95_mm10/HBCx_95_CapaR_flagged_rmDup.bam"
-  # input$bam1 =  "test_set/HBCx_95_mm10/HBCx_95_flagged_rmDup.bam"
-  # input$nclust = 3
+  # input$count_matrix_1 = "test_set/HBCx_22_hg38_paper/MatCov_Sample4_merged_hg38_mapped_rmdup_1000reads_hg38_50kb_chunks.txt"
+  # input$count_matrix_2 = "test_set/HBCx_22_hg38_paper/MatCov_Sample5_merged_hg38_mapped_rmdup_1000reads_hg38_50kb_chunks.txt"
+  # input$bam1 =  "test_set/HBCx_22_hg38_paper/HBCx_22_flagged_rmDup.bam"
+  # input$bam2 =  "test_set/HBCx_22_hg38_paper/HBCx_22_TamR_flagged_rmDup.bam"
+  # input$nclust = 2
   # input$percent_corr = 1
 
   if("--help" %in% args | "-h" %in% args) {
@@ -90,15 +91,13 @@ print("Initializing pipeline...")
 
         -b1 file_1.bam          - full path to first bam file for peak calling (.bam)
         -b2 file_2.bam          - full path to second bam file for peak calling (.bam)
-        -n <nclust>         - number of cluster to choose (optional)
-        -p <percent>         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional)
-        -e <exclude.bed>    -bed files containing regions to exclude (e.g. high CNV regions)
+        -n nclust         - number of cluster to choose (optional)
+        -p percent [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
+        -e exclude.bed    -bed files containing regions to exclude (e.g. high CNV regions)
         --help              - print this text
    
         Example:
         Rscript R_scChIP_seq_analysis.R . 'HBCx_95' 'mm10'  HBCx_95_CapaR_original_mm10.txt  HBCx_95_original_mm10.txt -b1 HBCx_95_CapaR_flagged_rmDup.bam -b2 HBCx_95_flagged.bam -n 3 -p 1 -e regions.bed  \n\n
-        
-        Remark : for peak calling & gene set enrichment make sure that the order of the count matrices is the same as the order of the bam files.
         ")
     
     q(save="no")
@@ -232,7 +231,13 @@ print("Initializing pipeline...")
   # load(file=file.path(init$data_folder, "datasets", input$name, "consclust", paste0(input$name, ".RData")))
   # load(file=file.path(init$data_folder, "datasets", input$name, "consclust", paste0(input$name,'_affectation_k',input$nclust, ".RData")))
   # load(file=file.path(init$data_folder, "datasets", input$name, "supervised", paste0(input$name, "_", input$nclust, "_", input$qval.th, "_", input$cdiff.th, "_", input$de_type, ".RData")))
-  
+  # #For after diff analysis
+  # diff = list()
+  # my.res_save -> diff$my.res
+  # summary_save -> diff$summary
+  # groups_save -> diff$groups
+  # refs_save -> diff$refs
+
 
 ## 0.6 Data folder initialization ##
 
@@ -253,23 +258,23 @@ print("Initializing pipeline...")
     datamatrix_single <- read.table(input$datafile_matrix$datapath[i], header=TRUE, stringsAsFactors=FALSE)
 
     datamatrix_single <- datamatrix_single[!duplicated(rownames(datamatrix_single)),] #put IN for new format
-    
+
     #If matrix in new format, comment two lines below :
     rownames(datamatrix_single) = as.character(datamatrix_single[,1])
     datamatrix_single = datamatrix_single [,-1]
-   
+
     # & uncomment those
     # rownames(datamatrix_single) <- gsub("-", "_", rownames(datamatrix_single))
     # rownames(datamatrix_single) <- gsub(":", "_", rownames(datamatrix_single))
 
-    
+
     total_cell <- length(datamatrix_single[1,])
     sample_name <- gsub('.{4}$', '', input$datafile_matrix$name[i])
     annot_single <- data.frame(barcode=colnames(datamatrix_single), cell_id=paste0(sample_name, "_c", 1:total_cell), sample_id=rep(sample_name, total_cell), batch_id=i)
-    
-    
+
+
     colnames(datamatrix_single) <- annot_single$cell_id
-    
+
     if(is.null(datamatrix)){ datamatrix <- datamatrix_single
     }else{
       common_regions <- intersect(rownames(datamatrix), rownames(datamatrix_single))
@@ -277,12 +282,12 @@ print("Initializing pipeline...")
     }
     if(is.null(annot_raw)){ annot_raw <- annot_single} else{ annot_raw <- rbind(annot_raw, annot_single)}
   }
-  
+
   #Removing weird chromosomes
   splitID <- sapply(rownames(datamatrix), function(x) strsplit(as.character(x), split="_"))
   normalChr <- which(sapply(splitID, length) <= 3) # weird chromosomes contain underscores in the name
   datamatrix <- datamatrix[normalChr,]
-  
+
   #Removing user specified regions
   if(!is.null(input$exclude)){
     exclude_regions <- setNames(read.table(input$exclude, header=FALSE, stringsAsFactors=FALSE), c("chr", "start", "stop"))
@@ -341,7 +346,7 @@ print("Running filtering and QC...")
   annot <- as.data.frame(annot[sel,])
   annot = cbind(annot,annot_raw[which(annot_raw$cell_id %in% rownames(annot)),])
 
-  
+
 
   mat <- NULL
   mat <- mean(colSums(SelMatCov))*t(t(SelMatCov)/colSums(SelMatCov))
@@ -375,13 +380,13 @@ print("Running filtering and QC...")
   tmp_meta <- data.frame(Sample=rownames(annot), sample_id=annot$sample_id) # modify if coloring should be possible for other columns
   anocol <- geco.annotToCol2(annotS=annot[, annotCol], annotT=annot, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name, "Annotation_legends.pdf"), categCol=NULL)
   annotColors <- data.frame(sample_id=as.data.frame(anocol)$sample_id) %>% setNames(str_c(names(.), "_Color_Orig")) %>% rownames_to_column("Sample") %>% left_join(tmp_meta,. , by="Sample")
-  
+
 ## 1.5 PCA ##
 
   print("Running pca ...")
   pca <- stats::prcomp(t(mat),center=F,scale.=F)
   pca = pca$x[,1:50]
-  
+
 
   extendXlimLeft <- 5 # Extend left Xlim by x percent of min
   extendXlimRight <- 15 # Extend right Xlim by x percent of max
@@ -389,29 +394,29 @@ print("Running filtering and QC...")
   extendYlimTop <- 5 # Extend top Ylim by x percent of max
   TextSize <- 0.4
   pcaText <- FALSE
-  
+
   pdf(file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "PCA", sep="_"), ".pdf")), height=5, width=5)
-  
+
   #PCA colored by sample_id
   plot(pca[,1],pca[,2],col=alpha(anocol[,'sample_id'],0.6),xlab='PC1',ylab='PC2',cex=0.8,lwd=1.5, main=paste0('PCA colored by ',colnames(anocol)[1]), pch=19,
-   ) 
-  
+   )
+
   #PCA colored by counts
   plot(pca[,1],pca[,2],col=alpha(anocol[,'total_counts'],0.6),xlab='PC1',ylab='PC2',cex=0.8,lwd=1.5, main=paste0('PCA colored by ',colnames(anocol)[2]), pch=19,
-  ) 
+  )
   dev.off()
-  
+
   print("PCA done !")
-  
+
 ## 1.6 t-SNE ##
 
   print("Running t-sne ...")
-  
+
   #Reduce the perplexity if the number of samples is too low to avoid perplexity error
   tsne <- Rtsne(pca[,1:50], dims=2, pca=FALSE, theta=0.0, perplexity=choose_perplexity(pca), verbose=FALSE, max_iter=1000)
-  
+
   pdf(file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "Tsne", sep="_"), ".pdf")), height=5, width=5)
-  
+
   #T-sne colored by sample_id
   p <- ggplot(as.data.frame(tsne$Y), aes(x=V1, y=V2)) + geom_point(alpha=0.6, aes(color=annot[,'sample_id'])) +
     labs(color='sample_id', x="t-SNE 1", y="t-SNE 2") +
@@ -419,22 +424,22 @@ print("Running filtering and QC...")
           panel.background=element_blank(), axis.line=element_line(colour="black"),
           panel.border=element_rect(colour="black", fill=NA)) + ggtitle("T-SNE colored by sample id")
   p <- p + scale_color_manual(values = levels(as.factor(unique(anocol[,'sample_id'])))) + theme(legend.position = "none")
-  p 
-  
+  p
+
   #T-sne colored by counts
   p <- ggplot(as.data.frame(tsne$Y), aes(x=V1, y=V2)) + geom_point(alpha=0.6, aes(color=annot[,'total_counts'])) +
     labs(color='sample_id', x="t-SNE 1", y="t-SNE 2") +
     theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
           panel.background=element_blank(), axis.line=element_line(colour="black"),
           panel.border=element_rect(colour="black", fill=NA)) +  ggtitle("T-SNE colored by total count")
-  
+
   p <- p + scale_color_gradientn(colours = matlab.like(100))
-  p 
-  
+  p
+
   dev.off()
 
   print("T-sne done !")
-  
+
 ## 1.7 Save data ##
 
   save(pca,mat, annot, tsne, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "uncorrected", sep="_"), ".RData")))
@@ -451,24 +456,31 @@ print("Running correlation clustering & filtering... ")
   hc_cor <- hclust(as.dist(1 - cor(mati)), method="ward.D")
   mat.so.cor <- mati[,hc_cor$order]
 
-  correlation_values <- list(limitC=NA)
+
+  correlation_values <- list(limitC=vector(length=100))
   corChIP <-  cor(mati)
 
-  for(i in 1:100){
+  for(i in 1:500){
       random_mat <-  matrix(sample(mati), nrow=dim(mati)[1])
       thresh2 <- quantile(cor(random_mat), probs=seq(0,1,0.01))
       limitC <-  thresh2[input$corr_thresh+1]
-      correlation_values$limitC = mean(c(as.numeric(limitC),correlation_values$limitC),na.rm = T)
+      correlation_values$limitC[i] = limitC
   }
 
+  correlation_values$limitC_mean = mean(correlation_values$limitC,na.rm = T)
+
 ## 2.2 Filtering cells based on correlation threshold ##
+
+
+  cf$sel2 <- (apply(corChIP, 1, function(x) length(which(x>correlation_values$limitC_mean))) > (input$percent_corr*0.01)*dim(corChIP)[1])
+  cf$mati2 <- mati[, cf$sel2]
+  print(dim(cf$mati2))
+
+
 
   tmp_meta <- data.frame(Sample=rownames(annot), sample_id=annot$sample_id) # modify if coloring should be possible for other columns
   anocol <- geco.annotToCol2(annotS=annot[, annotCol], annotT=annot, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name, "Annotation_legends.pdf"), categCol=NULL)
   annotColors <- data.frame(sample_id=as.data.frame(anocol)$sample_id) %>% setNames(str_c(names(.), "_Color_Orig")) %>% rownames_to_column("Sample") %>% left_join(tmp_meta,. , by="Sample")
-
-  cf$sel2 <- (apply(corChIP, 1, function(x) length(which(x>correlation_values$limitC))) > (input$percent_corr*0.01)*dim(corChIP)[1])
-  cf$mati2 <- mati[, cf$sel2]
 
   cf$hc_cor2 <- hclust(as.dist(1 - cor(cf$mati2)), method="ward.D")
   cf$mat.so.cor2 <- cf$mati2[, cf$hc_cor2$order]
@@ -515,7 +527,7 @@ print("Running correlation clustering & filtering... ")
 
 ## 2.4 Plotting correlation heatmap after filtering ##
 
-  png(file.path(init$data_folder, "datasets", input$name, "consclust","Clustering_correlation_matrix_PCA_wo_highcorr.png"), height=1000,width=1000,res=150)
+  png(file.path(init$data_folder, "datasets", input$name, "cor_filtered_data","Clustering_correlation_matrix_PCA_wo_highcorr.png"), height=1000,width=1000,res=150)
 
   geco.hclustAnnotHeatmapPlot(x=cor(cf$mat.so.cor2),
                                    hc=cf$hc_cor2,
@@ -663,18 +675,18 @@ print("Differential analysis done...")
 
 #If user inputed bam files -> continue towards peak calling and gene set enrichment :
 if(file.exists(input$bam1) & file.exists(input$bam2)){
-  
+
   print("Bam files found, continuing analysis...")
-  
+
   ##############################################################################################################################
   ### 5. Peak calling
   ##############################################################################################################################
-  
+
   print("Running peak calling...")
-  
-  
+
+
   ## 5.1 Creating peak calling folder ##
-  
+
   dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks"), showWarnings=FALSE)
   dir.create(file.path(init$data_folder, "datasets",  input$name, "peaks", paste0( input$name, "_k", input$nclust)), showWarnings=FALSE)
   odir = file.path(init$data_folder, "datasets", input$name, "peaks",paste0(input$name,"_k",input$nclust))
@@ -682,62 +694,62 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
   input$pc_stat="p.value"
   stat.value <- if(input$pc_stat=="p.value") paste("-p", input$pc_stat_value) else paste("-q", input$pc_stat_value)
   inputBams = as.vector(unlist(inputBams))
-  
+
   ## 5.2 Merging bam files together ##
-  
+
   if(length(inputBams) > 1) {
     write(inputBams, file=file.path(odir, "bam_list.txt"))
     system(paste0('samtools merge -@ 4 -f -h ', inputBams[1],' -b ', file.path(odir, "bam_list.txt"), ' ', file.path(odir, 'merged.bam')))
     merged_bam=file.path(odir, 'merged.bam')
   }
-  
+
   ## 5.3 Writing affected clusters ##
-  
+
   for(class in levels(factor(affectation$ChromatinGroup))){
     write(as.vector(affectation$barcode[which(affectation$ChromatinGroup == as.character(class))]), file=file.path(odir, paste0(class, ".barcode_class")))
   }
   write(levels(factor(affectation$ChromatinGroup)),file = file.path(odir, "barcodes.barcode_class"))
-  
+
   ## 5.4 Splitting bam files into clusters ##
-  
+
   system(paste0('samtools view -H ', merged_bam, ' > ', file.path(odir, 'header.sam')))
   system(paste0('for i in $(cat ', file.path(odir, 'barcodes.barcode_class'), '); do samtools view -h ',merged_bam,' | fgrep -w -f ', file.path(odir,'/$i.barcode_class'), ' > ', file.path(odir,'$i.sam'), ';done'))
-  
+
   #Reconvert to bam
   system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do cat ', file.path(odir, 'header.sam'), ' ', file.path(odir, '$i.sam'), ' | samtools view -b - > ', file.path(odir, '$i.bam'), ' ; done'))
-  
+
   #BamCoverage
   #system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do samtools index ', file.path(odir,'$i.bam'), '; done'))
   #system(paste0('for i in $(cat ', file.path(odir,'barcodes.barcode_class'), '); do bamCoverage --bam ', file.path(odir,'$i.bam'), ' --outFileName ', file.path(odir,'$i.bw'), ' --binSize 50 --smoothLength 500 --extendReads 150 --ignoreForNormalization chrX --numberOfProcessors 4 --normalizeUsing RPKM; done'))
-  
+
   system(paste0('rm ', file.path(odir,'*.barcode_class'), ' ', file.path(odir,'*.sam')))
-  
+
   ## 5.5 Call peak on each cluster ##
-  
+
   #Peak calling with macs2
   stat.value = '-p 0.05'
   for(cluster in levels(factor(affectation$ChromatinGroup))){
     system(paste0('macs2 callpeak ', stat.value, ' --broad -t ', file.path(odir, paste0(cluster,".bam")), " --outdir ", odir," --name ",cluster))
     system(paste0('bedtools merge -delim "\t" -d 20000 -i ', file.path(odir, paste0(cluster, '_peaks.broadPeak')), ' > ', file.path(odir, paste0(cluster, '_merged.bed'))))
   }
-  
-  
+
+
   #Clean up files
   unlink(file.path(odir, "bam_list.txt"))
   unlink(file.path(odir, "*.bam"))
   unlink(file.path(odir, "*.bam.bai"))
-  unlink(file.path(odir, "*.xls")) 
+  unlink(file.path(odir, "*.xls"))
   unlink(file.path(odir, "*.gappedPeak"))
   unlink(file.path(odir, "*_model.r"))
-  
+
   ## 5.6 Make annotation files ##
-  
+
   mergeBams <- paste(sapply(levels(factor(affectation$ChromatinGroup)), function(x){ file.path(odir, paste0(x, "_merged.bed")) }), collapse = ';')
   mergeBams <- paste0('"', mergeBams, '"')
   system(paste("bash", file.path("Modules", "makePeakAnnot.sh"), mergeBams, file.path("annotation", input$annotation_id, "chrom.sizes.bed"), file.path("annotation", input$annotation_id, "50k.bed"), file.path("annotation", input$annotation_id, "Gencode_TSS_pc_lincRNA_antisense.bed"), paste0('"', odir, .Platform$file.sep, '"')))
-  
+
   print("Peak calling done...")
-  
+
   ##############################################################################################################################
   ### 6. Enrichment Analysis
   ##############################################################################################################################
@@ -770,8 +782,8 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
   ## 6.2 Running enrichment test for each cluster ##
   
     Both <- list()
-    Overexpressed <- list()
-    Underexpressed <- list()
+    Enriched <- list()
+    Depleted <- list()
   
     for(i in 1:length(diff$groups)){
           gp <- diff$groups[i]
@@ -809,7 +821,7 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
             enrich.test <- enrich.test[order(enrich.test$`p-value`),]
             ind <- which(enrich.test$`q-value`<= 0.1)
             if(!length(ind)){ind <- 1:10}
-            Overexpressed[[i]]  <- enrich.test[ind,]
+            Enriched[[i]]  <- enrich.test[ind,]
           }
           
           if(length(underG)){
@@ -819,15 +831,15 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
             enrich.test <- enrich.test[order(enrich.test$`p-value`),]
             ind <- which(enrich.test$`q-value`<= 0.1)
             if(!length(ind)){ind <- 1:10}
-            Underexpressed[[i]] <- enrich.test[ind,]
+            Depleted[[i]] <- enrich.test[ind,]
           }
           
     }
     
-    enr <- list(Both=NULL, Overexpressed=NULL, Underexpressed=NULL)
+    enr <- list(Both=NULL, Enriched=NULL, Depleted=NULL)
     # enr$Both <- Both
-    enr$Overexpressed <- Overexpressed
-    enr$Underexpressed <- Underexpressed
+    enr$Enriched <- Enriched
+    enr$Depleted <- Depleted
     
   
   ##  6.3 Saving enrichment tables ##
@@ -837,13 +849,13 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
           #   filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_significant_gene_sets.csv"))
           #   write.table(enr$Both[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
           # }
-          if(!is.null(enr$Overexpressed[[i]])){
+          if(!is.null(enr$Enriched[[i]])){
             filename <- file.path(init$data_folder,"datasets",input$name,"supervised",paste0(diff$groups[i], "_enriched_gene_sets.csv"))
-            write.table(enr$Overexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
+            write.table(enr$Enriched[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
           }
-          if(!is.null(enr$Underexpressed[[i]])){
+          if(!is.null(enr$Depleted[[i]])){
             filename <- file.path(init$data_folder,"datasets",input$name,"supervised",paste0(diff$groups[i], "_depleted_gene_sets.csv"))
-            write.table(enr$Underexpressed[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
+            write.table(enr$Depleted[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
            }
     }
     
@@ -852,8 +864,8 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
     
     pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Over.pdf')))
     for(i in 1:length(diff$groups)){
-      if(!is.null(enr$Overexpressed[[i]])) {
-        over = as_tibble(enr$Overexpressed[[i]])
+      if(!is.null(enr$Enriched[[i]])) {
+        over = as_tibble(enr$Enriched[[i]])
         over = over %>% dplyr::filter(Class %in% classes_MSIG)
         if(dim(over)[1]>0){
           over_plot = ggplot(data =over[1:min(10,length(over$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = over$Gene.Set[1:min(10,length(over$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Enriched Gene Sets - C",i))
@@ -865,8 +877,8 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
     
     pdf(file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('Gene_Enrichment_Analysis_Under.pdf')))
     for(i in 1:length(diff$groups)){
-      if(!is.null(enr$Underexpressed[[i]])) {
-        under = as_tibble(enr$Underexpressed[[i]])
+      if(!is.null(enr$Depleted[[i]])) {
+        under = as_tibble(enr$Depleted[[i]])
         under = under %>% dplyr::filter(Class %in% classes_MSIG)
         if(dim(under)[1]>0){
           under_plot = ggplot(data =under[1:min(10,length(under$Gene.Set)),], aes(x=sort(as.factor(Gene.Set)),label = under$Gene.Set[1:min(10,length(under$Gene.Set))],y= -log10(`q-value`))) + geom_col(fill="#B8B8B8") +geom_text(aes(y = 0), angle = 90, hjust = -.05, size = 2.5) + theme(axis.text.x = element_blank()) + xlab("GeneSets") + ggtitle(paste0("Top 10 Depleted Gene Sets - C",i))
