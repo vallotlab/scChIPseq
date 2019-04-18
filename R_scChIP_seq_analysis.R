@@ -74,7 +74,7 @@ print("Initializing pipeline...")
   # input$nclust = 2
   # input$percent_corr = 2
   # input$exclude = "annotation/hg38/exclude_regions_hg38.bed"
-  
+
    if("--help" %in% args | "-h" %in% args) {
     cat("
         Single-cell ChIP seq analysis :
@@ -779,39 +779,36 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
   
   ## 6.2 Running enrichment test for each cluster ##
   
-    Both <- list()
     Enriched <- list()
     Depleted <- list()
-  
+    
+   
+    differential_genes= NULL
+    
     for(i in 1:length(diff$groups)){
           gp <- diff$groups[i]
           ref <- diff$refs[i]
-          signific <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & abs(diff$my.res[, paste("cdiff", gp, sep=".")]) > input$cdiff.th)]
-          significG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% signific])
+          tmp_diff = NULL
+  
           over <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] > input$cdiff.th)]
           overG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% over])
           under <- diff$my.res$ID[which(diff$my.res[, paste("qval", gp, sep=".")] <= input$qval.th & diff$my.res[, paste("cdiff", gp, sep=".")] < -input$cdiff.th)]
           underG <- unique(annotFeat_long$Gene[annotFeat_long$distance < 1000 & annotFeat_long$ID %in% under])
-  
-          signific_associated_peak <- peak_window[peak_window$window_ID %in% signific, 8]
+          
+          
+          tmp_diff = diff$my.res[which(diff$my.res$ID %in% c(as.character(over),as.character(under))),]
+          tmp_diff= left_join(tmp_diff,annotFeat_long[annotFeat_long$distance < 1000 & (annotFeat_long$ID %in% over | annotFeat_long$ID %in% under) ,c("ID","Gene")], by ="ID")
+
+          differential_genes = rbind(differential_genes,tmp_diff)
+          
           over_associated_peak <- peak_window[peak_window$window_ID %in% over, 8]
           under_associated_peak <- peak_window[peak_window$window_ID %in% under, 8]
-          signific_associated_gene <- peak_gene[peak_gene$peak_ID %in% signific_associated_peak & peak_gene$dist_TSS<1000, ]
           over_associated_gene <- peak_gene[peak_gene$peak_ID %in% over_associated_peak & peak_gene$dist_TSS<1000, ]
           under_associated_gene <- peak_gene[peak_gene$peak_ID %in% under_associated_peak & peak_gene$dist_TSS<1000, ]
-          significG <- unique(signific_associated_gene$Gene_name)
           overG <- unique(over_associated_gene$Gene_name)
           underG <- unique(under_associated_gene$Gene_name)
           
-          # if(length(significG)){
-          #   enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=significG, possibleIds=GencodeGenes)
-          #   enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
-          #   enrich.test <- merge(subset(MSIG.gs, select=-Genes), enrich.test, by.x="Gene.Set", by.y="Gene_set_name", all.y=TRUE, sort=FALSE ) ## Get class of gene set
-          #   enrich.test <- enrich.test[order(enrich.test$`p-value`),]
-          #   ind <- which(enrich.test$`q-value`<= 0.1)
-          #   if(!length(ind)){ind <- 1:10}
-          #   Both[[i]] <- enrich.test[ind,]
-          # }
+        
           if(length(overG)){
             enrich.test <- geco.enrichmentTest(gene.sets=MSIG.ls, mylist=overG, possibleIds=GencodeGenes)
             enrich.test <- data.frame(Gene_set_name=rownames(enrich.test), enrich.test, check.names=FALSE)
@@ -834,19 +831,18 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
           
     }
     
-    enr <- list(Both=NULL, Enriched=NULL, Depleted=NULL)
-    # enr$Both <- Both
+    differential_genes = differential_genes[!duplicated(differential_genes$ID),]
+    
+    enr <- list(Enriched=NULL, Depleted=NULL)
     enr$Enriched <- Enriched
     enr$Depleted <- Depleted
     
   
   ##  6.3 Saving enrichment tables ##
-  
+    save(differential_genes,enr, file = file.path(init$data_folder,"datasets" , input$name, 'supervised',paste0('gene_enrichment.RData')))
+    
     for(i in 1:length(diff$groups)){
-          # if(!is.null(enr$Both[[i]])){
-          #   filename <- file.path(init$data_folder,"datasets",input$name,paste0(diff$groups[i], "_significant_gene_sets.csv"))
-          #   write.table(enr$Both[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
-          # }
+          
           if(!is.null(enr$Enriched[[i]])){
             filename <- file.path(init$data_folder,"datasets",input$name,"supervised",paste0(diff$groups[i], "_enriched_gene_sets.csv"))
             write.table(enr$Enriched[[i]], file=filename, quote=FALSE, row.names=FALSE, sep=",")
