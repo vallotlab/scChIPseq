@@ -28,7 +28,6 @@ print("Initializing pipeline...")
     input$source_file_directory = as.character(args[1])
     input$name = as.character(args[2])
     input$annotation_id = as.character(args[3])
-    input$count_matrix_1 = as.character(args[4])
 
     for(i in 1:10){
       if( paste0('-',i) %in% args) {
@@ -66,16 +65,17 @@ print("Initializing pipeline...")
   #If running from R, change and uncomment below  
   # input = list()
   # input$source_file_directory = "/home/pprompsy/Documents/GitLab/scChIPseq/"
-  # input$name = "HBCx_22_hg38_paper"
+  # input$name = "HBCx_95_human_paper"
   # input$annotation_id = "hg38"
-  # input$count_matrix_1 = "test_set/HBCx_22_hg38_paper/MatCov_Sample4_merged_hg38_mapped_rmdup_1000reads_hg38_50kb_chunks.txt"
-  # input$count_matrix_2 = "test_set/HBCx_22_hg38_paper/MatCov_Sample5_merged_hg38_mapped_rmdup_1000reads_hg38_50kb_chunks.txt"
-  # input$bam1 =  "test_set/HBCx_22_hg38_paper/HBCx_22_flagged_rmDup.bam"
-  # input$bam2 =  "test_set/HBCx_22_hg38_paper/HBCx_22_TamR_flagged_rmDup.bam"
+  # input$count_matrix_1 = "test_set/HBCx_95_hg38_paper/MatCov_Sample1_merged123_hg38_rmdup_1000reads_hg38_50kb_chunks.txt"
+  # input$count_matrix_2 = "test_set/HBCx_95_hg38_paper/MatCov_Sample2_merged123_hg38_rmdup_1000reads_hg38_50kb_chunks.txt"
+  # input$bam1 =  "test_set/HBCx_95_hg38_paper/HBCx_95_flagged_rmDup.bam"
+  # input$bam2 =  "test_set/HBCx_95_hg38_paper/HBCx_95_flagged_rmDup.bam"
   # input$nclust = 2
-  # input$percent_corr = 1
-
-  if("--help" %in% args | "-h" %in% args) {
+  # input$percent_corr = 2
+  # input$exclude = "annotation/hg38/exclude_regions_hg38.bed"
+  
+   if("--help" %in% args | "-h" %in% args) {
     cat("
         Single-cell ChIP seq analysis :
    
@@ -287,19 +287,7 @@ print("Initializing pipeline...")
   splitID <- sapply(rownames(datamatrix), function(x) strsplit(as.character(x), split="_"))
   normalChr <- which(sapply(splitID, length) <= 3) # weird chromosomes contain underscores in the name
   datamatrix <- datamatrix[normalChr,]
-
-  #Removing user specified regions
-  if(!is.null(input$exclude)){
-    exclude_regions <- setNames(read.table(input$exclude, header=FALSE, stringsAsFactors=FALSE), c("chr", "start", "stop"))
-    dim(exclude_regions)
-    regions <- data.frame(loc=rownames(datamatrix))
-    regions <- separate(regions, loc, into=c("chr", "start", "stop"), sep="_", convert=TRUE)
-    reg_gr <- makeGRangesFromDataFrame(regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
-    excl_gr <- makeGRangesFromDataFrame(exclude_regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
-    ovrlps <- as.data.frame(findOverlaps(reg_gr, excl_gr))[, 1]
-    datamatrix <- datamatrix[-unique(ovrlps), ]
-  }
-
+  
   #Remove chrM from mat if it is inside
   if(length(grep("chrM",rownames(datamatrix)))>0)  datamatrix <- datamatrix[-grep("chrM",rownames(datamatrix)),]
 
@@ -346,7 +334,18 @@ print("Running filtering and QC...")
   annot <- as.data.frame(annot[sel,])
   annot = cbind(annot,annot_raw[which(annot_raw$cell_id %in% rownames(annot)),])
 
-
+  #Removing user specified regions
+  if(!is.null(input$exclude)){
+    exclude_regions <- setNames(read.table(input$exclude, header=FALSE, stringsAsFactors=FALSE), c("chr", "start", "stop"))
+    dim(exclude_regions)
+    regions <- data.frame(loc=rownames(SelMatCov))
+    regions <- separate(regions, loc, into=c("chr", "start", "stop"), sep="_", convert=TRUE)
+    reg_gr <- makeGRangesFromDataFrame(regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
+    excl_gr <- makeGRangesFromDataFrame(exclude_regions, ignore.strand=TRUE, seqnames.field=c("chr"), start.field=c("start"), end.field="stop")
+    ovrlps <- as.data.frame(findOverlaps(reg_gr, excl_gr))[, 1]
+    SelMatCov <- SelMatCov[-unique(ovrlps), ]
+  }
+  
 
   mat <- NULL
   mat <- mean(colSums(SelMatCov))*t(t(SelMatCov)/colSums(SelMatCov))
