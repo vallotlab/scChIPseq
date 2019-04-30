@@ -316,8 +316,6 @@ print("Running filtering and QC...")
 
   sel <- ( colSums(counts(umi))>input$min_coverage_cell & colSums(counts(umi)) < thresh[input$quant_removal+1] )
 
-  annot <- colData(umi)
-
 
   SelMatCov1000 <- counts(umi)[,sel1000]
   bina_counts <- SelMatCov1000
@@ -331,7 +329,7 @@ print("Running filtering and QC...")
 
   annot <- colData(umi)
   annot <- as.data.frame(annot[sel,])
-  annot = cbind(annot,annot_raw[which(annot_raw$cell_id %in% rownames(annot)),])
+  #annot = cbind(annot,annot_raw[which(annot_raw$cell_id %in% rownames(annot)),])
 
   #Removing user specified regions
   if(!is.null(input$exclude)){
