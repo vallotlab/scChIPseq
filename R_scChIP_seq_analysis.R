@@ -21,6 +21,8 @@ print("Initializing pipeline...")
 
   args <- commandArgs(TRUE)
   input = list()
+  input$batch_num = 0
+  input$batch_sel = list()
   print(args)  
   if(length(args) < 5) {
     args <- c("--help")
@@ -44,6 +46,16 @@ print("Initializing pipeline...")
           q(save="no")
         }
       }
+      if(paste0('-B',i) %in% args){
+        input$batch_num = input$batch_num +1
+        input$batch_sel[[i]] = str_split(string = as.character(args[which(args == paste0("-B",i))+1]),pattern = ";")
+        for(file in input$batch_sel[[i]]){
+          if(!file.exists(file)){
+            print(paste0("ERROR :  in batch  ",i," : file not found : ",file))
+            q(save="no")
+          }
+        }
+      }
     }
     
     if( '-n' %in% args) {
@@ -55,12 +67,14 @@ print("Initializing pipeline...")
     if ('-e' %in% args) {
       input$exclude = as.character(args[which(args == '-e')+1])
     }
+    
     if(input$annotation_id != "mm10" && input$annotation_id != "hg38"){
       print("ERROR :  Annotation id in wrong format, please input 'mm10' or 'hg38' ")
       args <- c("--help")
     }
     
   }
+
 
   #If running from R, change and uncomment below  
   # input = list()
@@ -88,8 +102,9 @@ print("Initializing pipeline...")
 
         >Optional arguments: 
 
-        -[int] count_matrix_[int].txt   - full path to [int]th count matrix file (.tsv/.txt)
+        -[int] count_matrix_X.txt   - full path to X count matrix file (.tsv/.txt)
         -b[int] file_[int].bam          - full path to [int]th bam file for peak calling (.bam)
+        -B[int] count_matrix_X.txt;count_matrix_Y.txt;...           - full path to count_matrix_X-Y...txt files to put in batch [int] for batch correction
         -n nclust         - number of cluster to choose (optional)
         -p percent [default = 1]         - percent (base 100) of cells to correlate with in correlation clustering and filtering step (optional) 
         -e exclude.bed    -bed files containing regions to exclude (e.g. high CNV regions)
@@ -349,7 +364,6 @@ print("Running filtering and QC...")
 
   norm_mat = mat
 
-  save(norm_mat, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste(input$name, input$min_coverage_cell,input$min_cells_window, input$quant_removal, "uncorrected", sep="_", "normMat.RData"))) # used for supervised analysis
 
   mat <- mat-apply(mat, 1, mean)
 
@@ -364,7 +378,7 @@ print("Running filtering and QC...")
   feature <- data.frame(ID=rownames(norm_mat), chr=chr, start=start, end=end)
   write.table(feature[, 2:4], file=("feature.bed"), sep="\t", row.names=F, col.names=F, quote=F)
   system("bedtools sort -i feature.bed > featuresort.bed")
-  system(paste0("bedtools closest -a featuresort.bed -b ", file.path("~/Documents/GitLab/single_cell_ChIPseq/Shiny_scChIP/annotation", input$annotation_id, "Gencode_TSS_pc_lincRNA_antisense.bed"), " -wa -wb -d> out.bed"))
+  system(paste0("bedtools closest -a featuresort.bed -b ", file.path("annotation", input$annotation_id, "Gencode_TSS_pc_lincRNA_antisense.bed"), " -wa -wb -d> out.bed"))
   annotFeat <- read.table("out.bed", header=F)
   unlink(c("feature.bed", "featuresort.bed", "out.bed"))
   annotFeat <- annotFeat[, c(1:3, 7:8)]
@@ -377,7 +391,47 @@ print("Running filtering and QC...")
   anocol <- geco.annotToCol2(annotS=annot[, annotCol], annotT=annot, plotLegend=T, plotLegendFile=file.path(init$data_folder, "datasets", input$name, "Annotation_legends.pdf"), categCol=NULL)
   annotColors <- data.frame(sample_id=as.data.frame(anocol)$sample_id) %>% setNames(str_c(names(.), "_Color_Orig")) %>% rownames_to_column("Sample") %>% left_join(tmp_meta,. , by="Sample")
 
-## 1.5 PCA ##
+## 1.5 Batch Correction ##
+  
+  pca <- NULL
+  batches <- list()
+  mnn.out <- NULL 
+  
+  if(input$batch_num > 0){
+    print("Running Batch Correction ...")
+
+    print("Num batches = ")
+    print(input$batch_num)
+    print("Batch _ sels :")
+    print(input$batch_sel)
+    annot$batch_name <- "unspecified"
+    batch_names = paste0("batch_",1:input$batch_num)
+    
+    for(i in 1:input$batch_num){
+      for(s_id in input$batch_sel[[i]]){
+        
+        annot[annot$sample_id==s_id, "batch_name"] <- batch_names[i]
+      }
+    }
+    adj_annot <- data.frame()  # annot must be reordered based on batches
+    b_names <- unique(annot$batch_name)
+    
+    for(i in 1:length(b_names)){
+      b_name <- b_names[i]
+      batches[[i]] <- mat[, annot$batch_name==b_name]
+      adj_annot <- rbind(adj_annot, annot[annot$batch_name==b_name, ])
+    }
+    
+    print(length(batches))
+    mnn.out <- do.call(fastMNN, c(batches, list(k=25, d=50, ndist=3, auto.order=T, cos.norm=F,compute.variances = T)))
+    pca <- mnn.out$corrected
+    colnames(pca) <- paste0("PC", 1:dim(pca)[2])
+    annot <- adj_annot
+    print("Batch Correction Done !")
+  }
+  save(norm_mat, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste(input$name, input$min_coverage_cell,input$min_cells_window, input$quant_removal, "uncorrected", sep="_", "normMat.RData"))) # used for supervised analysis
+  
+## 1.6 PCA ##
 
   print("Running pca ...")
   pca <- stats::prcomp(t(mat),center=F,scale.=F)
@@ -391,6 +445,7 @@ print("Running filtering and QC...")
   TextSize <- 0.4
   pcaText <- FALSE
 
+  
   pdf(file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "PCA", sep="_"), ".pdf")), height=5, width=5)
 
   #PCA colored by sample_id
@@ -404,7 +459,7 @@ print("Running filtering and QC...")
 
   print("PCA done !")
 
-## 1.6 t-SNE ##
+## 1.7 t-SNE ##
 
   print("Running t-sne ...")
 
@@ -436,7 +491,7 @@ print("Running filtering and QC...")
 
   print("T-sne done !")
 
-## 1.7 Save data ##
+## 1.8   Save data ##
 
   save(pca,mat, annot, tsne, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "uncorrected", sep="_"), ".RData")))
 
