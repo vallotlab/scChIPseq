@@ -104,6 +104,16 @@ annot    - annotation to use ('mm10' or 'hg38')
   source("Modules/geco.annotToCol2.R")
   source("Modules/geco.wilcox.R")
 ```
+
+Install geco packages (under packages/) : 
+```
+install.packages("packages/geco.utils.tar.gz",repos = NULL,type = "source")
+install.packages("packages/geco.visu.tar.gz",repos = NULL,type = "source")
+install.packages("packages/geco.unsupervised.tar.gz",repos = NULL,type = "source")
+install.packages("packages/geco.supervised.tar.gz",repos = NULL,type = "source")
+```
+
+
 ## Output
 
 In the repo, the script should have created a directory **datasets** in which a new directory is created for each run with a different input name. Inside that directory are created a directory for each part of the analysis, containing RData and figures.
