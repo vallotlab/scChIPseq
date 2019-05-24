@@ -392,7 +392,7 @@ print("Running filtering and QC...")
   annotFeat <- annotFeat[, c(1:3, 7:8)]
   colnames(annotFeat) <- c("chr", "start", "end", "Gene", "distance")
   annotFeat$ID <- paste(annotFeat$chr, annotFeat$start, annotFeat$end, sep="_")
-  annotFeat <- annotFeat %>% group_by(ID) %>% summarise_all(funs(paste(unique(.), collapse = ', '))) %>% as.data.frame
+  annotFeat <- annotFeat %>% group_by(ID) %>% summarise_all(list(name = ~ paste(unique(.), collapse = ', '))) %>% as.data.frame
   save(annotFeat, file=file.path(init$data_folder, "datasets", input$name, "reduced_data", paste0(paste(input$name, input$min_coverage_cell, input$min_cells_window, input$quant_removal, "uncorrected", sep="_"), "_annotFeat.RData"))) # used for supervised analysis
 
   tmp_meta <- data.frame(Sample=rownames(annot), sample_id=annot$sample_id) # modify if coloring should be possible for other columns
@@ -629,14 +629,13 @@ print("Running consensus clustering ...")
 ## 3.3 Read in number of cluster to use for differential analysis ##
 
   if (is.null(input$nclust)){
-
   input$nclust = -1
   while(is.na(input$nclust) | as.integer(input$nclust)<2 | as.integer(input$nclust) > 10){
-    cat (paste0("How much clusters do you want to set to perform differential analysis ? \n(Choose based on the plots created in 'datasets/",input$name,"/consclust/' )\n"))
-    input$nclust = as.integer(readline(prompt = " k = "))
+    input$nclust = as.integer(readline(prompt = paste0("How much clusters do you want to set to perform differential analysis ? \n(Choose based on the plots created in 'datasets/",input$name,"/consclust/' )\n"," k = ")))
     if (is.na(input$nclust) | input$nclust<2 | input$nclust > 10) {
       cat("Please choose a number of clusters between 2 and 10 \n")
     }
+    Sys.sleep(time = 0.5)
   }
   }
 
@@ -731,9 +730,9 @@ print("Running differential analysis...")
   }
 
 print("Differential analysis done...")
-
+if(!is.null(input$bam1)){
 #If user inputed bam files -> continue towards peak calling and gene set enrichment :
-if(file.exists(input$bam1) & file.exists(input$bam2)){
+if(file.exists(input$bam1)){
 
   print("Bam files found, continuing analysis...")
 
@@ -944,6 +943,7 @@ if(file.exists(input$bam1) & file.exists(input$bam2)){
     dev.off()
   
   print("Gene set enrichment done...")
+}
 }
 ##############################################################################################################################
 ### END
