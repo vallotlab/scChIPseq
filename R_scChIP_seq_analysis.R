@@ -30,10 +30,11 @@ print("Initializing pipeline...")
     input$source_file_directory = as.character(args[1])
     input$name = as.character(args[2])
     input$annotation_id = as.character(args[3])
-
+    input$num_datasets = 0
     for(i in 1:10){
       if( paste0('-',i) %in% args) {
-        eval(parse(text = paste0('input$count_matrix_',i,' = as.character(args[which(args == paste0("-",',i,'))+1])' )))
+        input$num_datasets = input$num_datasets +1
+        eval(parse(text = paste0('input$count_matrix_',i,' = gsub("-","_",as.character(args[which(args == paste0("-",',i,'))+1]))' )))
         if(!file.exists(eval(parse(text = paste0('input$count_matrix_',i))))){
           print("ERROR :  Count Matrix file not found ")
           q(save="no")
@@ -96,7 +97,7 @@ print("Initializing pipeline...")
         >Mandatory arguments (in the given order):
 
         source_file_directory   - path to script location to set working directory
-        name                  - path to script location to set working directory
+        name                  - name of the analysis
         annot= <mm10|hg38>   - annotation to use (Mouse or Human)
         -1 count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
 
@@ -124,12 +125,19 @@ print("Initializing pipeline...")
   
   #User input parameters :
   
-  input$datafile_matrix = list(datapath=c(input$count_matrix_1,input$count_matrix_2),
-                               name = c( basename(input$count_matrix_1),basename(input$count_matrix_2)))
+  datapath = c()
+  name = c()
+  inputBams = list()
+  for(i in 1:input$num_datasets){
+    datapath=c(datapath,eval(parse(text = paste0('input$count_matrix_',i))))
+    name = c(name, basename(eval(parse(text = paste0('input$count_matrix_',i)))))
+    inputBams[[i]] = eval(parse(text = paste0('input$bam',i)))
+  }
+  input$datafile_matrix=list(datapath=datapath,name=name)
   
-  inputBams <- list(input$bam1,input$bam2)
   print(input$datafile_matrix )
   print(inputBams)
+  
   clust <- list(cc.col=NULL, consclust.mat=NULL, hc=NULL, tsne_corr=NULL, annot_sel2=NULL,
                                         clust_pdf=NULL, available_k=10, chi=NULL)
   cf=list()
