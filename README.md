@@ -41,7 +41,7 @@ The arguments are described below :
 
 ```
 source_file_directory   - path to script location to set working directory
-name                  - path to script location to set working directory
+name                  - Name of analysis
 annot    - annotation to use ('mm10' or 'hg38')
 -1 count_matrix_1.txt   - full path to first count matrix file (.tsv/.txt)
 ```
