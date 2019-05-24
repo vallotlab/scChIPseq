@@ -39,7 +39,7 @@ print("Initializing pipeline...")
           print("ERROR :  Count Matrix file not found ")
           q(save="no")
         }
-      }
+      } 
       if( paste0('-b',i) %in% args) {
         eval(parse(text = paste0('input$bam',i,' = as.character(args[which(args == paste0("-b",',i,'))+1])' )))
         if(!file.exists(eval(parse(text = paste0('input$bam',i))))){
