@@ -23,6 +23,8 @@ print("Initializing pipeline...")
   input = list()
   input$batch_num = 0
   input$batch_sel = list()
+  input$bam = list()
+  input$count_matrix = list()
   print(args)  
   if(length(args) < 5) {
     args <- c("--help")
@@ -34,15 +36,17 @@ print("Initializing pipeline...")
     for(i in 1:10){
       if( paste0('-',i) %in% args) {
         input$num_datasets = input$num_datasets +1
-        eval(parse(text = paste0('input$count_matrix_',i,' = as.character(args[which(args == paste0("-",',i,'))+1])' )))
-        if(!file.exists(eval(parse(text = paste0('input$count_matrix_',i))))){
+        input$count_matrix[[i]] = as.character(args[which(args == paste0("-",i))+1])
+        print(input$count_matrix[[i]])
+        if(!file.exists(input$count_matrix[[i]]) ){
           print("ERROR :  Count Matrix file not found ")
           q(save="no")
         }
       } 
       if( paste0('-b',i) %in% args) {
-        eval(parse(text = paste0('input$bam',i,' = as.character(args[which(args == paste0("-b",',i,'))+1])' )))
-        if(!file.exists(eval(parse(text = paste0('input$bam',i))))){
+        input$bam[[i]] = as.character(args[which(args == paste0("-b",i))+1])
+        print( input$bam[[i]])
+        if(!file.exists(input$bam[[i]])){
           print("ERROR :  Bam file not found ")
           q(save="no")
         }
@@ -127,17 +131,15 @@ print("Initializing pipeline...")
   
   datapath = c()
   name = c()
-  inputBams = list()
   for(i in 1:input$num_datasets){
-    datapath=c(datapath,eval(parse(text = paste0('input$count_matrix_',i))))
-    name = c(name, basename(eval(parse(text = paste0('input$count_matrix_',i)))))
-    inputBams[[i]] = eval(parse(text = paste0('input$bam',i)))
+    datapath=c(datapath,input$count_matrix[[i]])
+    name = c(name, basename(input$count_matrix[[i]]))
+    
   }
   input$datafile_matrix=list(datapath=datapath,name=name)
   
   print(input$datafile_matrix )
-  print(inputBams)
-  
+
   clust <- list(cc.col=NULL, consclust.mat=NULL, hc=NULL, tsne_corr=NULL, annot_sel2=NULL,
                                         clust_pdf=NULL, available_k=10, chi=NULL)
   cf=list()
@@ -308,6 +310,7 @@ print("Initializing pipeline...")
   #Removing weird chromosomes
   splitID <- sapply(rownames(datamatrix), function(x) strsplit(as.character(x), split="_"))
   normalChr <- which(sapply(splitID, length) <= 3) # weird chromosomes contain underscores in the name
+  dim(datamatrix)
   datamatrix <- datamatrix[normalChr,]
   
   #Remove chrM from mat if it is inside
@@ -730,9 +733,9 @@ print("Running differential analysis...")
   }
 
 print("Differential analysis done...")
-if(!is.null(input$bam1)){
+if(length(input$bam)>0){
 #If user inputed bam files -> continue towards peak calling and gene set enrichment :
-if(file.exists(input$bam1)){
+if(!(FALSE %in% lapply(input$bam, file.exists))){
 
   print("Bam files found, continuing analysis...")
 
@@ -751,13 +754,13 @@ if(file.exists(input$bam1)){
   sample_ids <- unique(annot_sel$sample_id)
   input$pc_stat="p.value"
   stat.value <- if(input$pc_stat=="p.value") paste("-p", input$pc_stat_value) else paste("-q", input$pc_stat_value)
-  inputBams = as.vector(unlist(inputBams))
+  input$bam = as.vector(unlist(input$bam))
 
   ## 5.2 Merging bam files together ##
 
-  if(length(inputBams) > 1) {
-    write(inputBams, file=file.path(odir, "bam_list.txt"))
-    system(paste0('samtools merge -@ 4 -f -h ', inputBams[1],' -b ', file.path(odir, "bam_list.txt"), ' ', file.path(odir, 'merged.bam')))
+  if(length(input$bam) > 1) {
+    write(input$bam, file=file.path(odir, "bam_list.txt"))
+    system(paste0('samtools merge -@ 4 -f -h ', input$bam[1],' -b ', file.path(odir, "bam_list.txt"), ' ', file.path(odir, 'merged.bam')))
     merged_bam=file.path(odir, 'merged.bam')
   }
 
