@@ -34,7 +34,7 @@ print("Initializing pipeline...")
     for(i in 1:10){
       if( paste0('-',i) %in% args) {
         input$num_datasets = input$num_datasets +1
-        eval(parse(text = paste0('input$count_matrix_',i,' = gsub("-","_",as.character(args[which(args == paste0("-",',i,'))+1]))' )))
+        eval(parse(text = paste0('input$count_matrix_',i,' = as.character(args[which(args == paste0("-",',i,'))+1])' )))
         if(!file.exists(eval(parse(text = paste0('input$count_matrix_',i))))){
           print("ERROR :  Count Matrix file not found ")
           q(save="no")
