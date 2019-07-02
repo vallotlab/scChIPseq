@@ -1,4 +1,3 @@
-#!/bin/
 usePackageBioc <- function(p)
 {
   if (!is.element(p, installed.packages()[, 1]))
@@ -13,8 +12,9 @@ usePackage <- function(p)
 }
 usePackageGeco <- function(p)
 {
-  if (!is.element(p, installed.packages()[, 1]))
-    install.packages(p, repos = NULL, type = "source")
+	
+  if (!is.element(gsub(".tar.gz", "",p), installed.packages()[, 1]))
+    install.packages(file.path("packages",p), repos = NULL, type = "source")
   require(p, character.only = TRUE)
 }
 
