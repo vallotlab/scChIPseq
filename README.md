@@ -105,7 +105,10 @@ annot    - annotation to use ('mm10' or 'hg38')
   source("Modules/geco.wilcox.R")
 ```
 
-Install geco packages (under packages/) : 
+
+
+Note that the geco packages are custom packages that are embedded in the application (under packages/).
+If the **installation script** didn't work, you can try to install them manually :
 ```
 install.packages("packages/geco.utils.tar.gz",repos = NULL,type = "source")
 install.packages("packages/geco.visu.tar.gz",repos = NULL,type = "source")
