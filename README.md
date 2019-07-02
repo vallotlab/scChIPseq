@@ -65,7 +65,6 @@ annot    - annotation to use ('mm10' or 'hg38')
   library(GenomicRanges)
   library(ConsensusClusterPlus)
   library(Rtsne)
-  library(edgeR)
   
   #Data mining & utils
   library(tibble)
