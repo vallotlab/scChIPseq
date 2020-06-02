@@ -21,7 +21,6 @@ usePackageGeco <- function(p)
 #Biocmanager
 pkgs_bioc = c("scater",
               "scran",
-              "edgeR",
               "ConsensusClusterPlus",
               "GenomicRanges",
               "IRanges")

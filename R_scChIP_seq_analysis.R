@@ -176,7 +176,6 @@ print("Initializing pipeline...")
   library(GenomicRanges)
   library(ConsensusClusterPlus)
   library(Rtsne)
-  library(edgeR)
   
   #Data mining & utils
   library(tibble)
